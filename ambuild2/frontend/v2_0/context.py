@@ -93,7 +93,7 @@ class Context(object):
         return self.generator.backend
 
     def SetBuildFolder(self, folder):
-        if folder == '/' or folder == '.' or folder == './':
+        if folder in ['/', '.', './']:
             self.buildFolder = ''
         else:
             self.buildFolder = os.path.normpath(folder)

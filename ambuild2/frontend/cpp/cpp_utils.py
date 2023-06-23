@@ -17,17 +17,15 @@
 import uuid
 
 def CreateUnifiedHeader(header_guard, sources):
-    text = ""
-    text += "/* AUTO-GENERATED: DO NOT EDIT */\n"
-    text += "#ifndef {}\n".format(header_guard)
-    text += "#define {}\n".format(header_guard)
+    text = "" + "/* AUTO-GENERATED: DO NOT EDIT */\n"
+    text += f"#ifndef {header_guard}\n"
+    text += f"#define {header_guard}\n"
     for source in sources:
-        text += "# include <{}>\n".format(source)
-    text += "#endif /* {} */\n".format(header_guard)
+        text += f"# include <{source}>\n"
+    text += f"#endif /* {header_guard} */\n"
     return text
 
 def CreateSingleIncludeSource(header_name):
-    text = ""
-    text += "/* AUTO-GENERATED: DO NOT EDIT */\n"
-    text += "#include \"{}\"\n".format(header_name)
+    text = "" + "/* AUTO-GENERATED: DO NOT EDIT */\n"
+    text += f'#include \"{header_name}\"\n'
     return text

@@ -17,8 +17,7 @@ class WorkerPool:
 	def __init__(self, numWorkers):
 		self.numWorkers = numWorkers
 		self.workers = []
-		for i in range(0, self.numWorkers):
-			self.workers.append(Worker())
+		self.workers.extend(Worker() for _ in range(0, self.numWorkers))
 
 	def RunJobs(self, jobs):
 		for w in self.workers:

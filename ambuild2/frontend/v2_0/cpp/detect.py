@@ -23,8 +23,7 @@ from ambuild2.frontend.v2_0.cpp import vendors, compilers
 
 def TryVerifyCompiler(env, mode, cmd):
     if util.IsWindows():
-        cc = VerifyCompiler(env, mode, cmd, 'msvc')
-        if cc:
+        if cc := VerifyCompiler(env, mode, cmd, 'msvc'):
             return cc
     return VerifyCompiler(env, mode, cmd, 'gcc')
 
@@ -47,7 +46,7 @@ def DetectMicrosoftInclusionPattern(text):
         if m is None:
             continue
 
-        phrase = m.group(1)
+        phrase = m[1]
         return re.escape(phrase) + r'\s+([A-Za-z]:\\.*)$'
 
     raise Exception('Could not find compiler inclusion pattern')
@@ -77,24 +76,21 @@ def DetectCxx(env, options):
 def DetectCxxCompiler(env, var):
     if var in env:
         trys = [env[var]]
+    elif util.Platform() in CompilerSearch[var]:
+        trys = CompilerSearch[var][util.Platform()]
     else:
-        if util.Platform() in CompilerSearch[var]:
-            trys = CompilerSearch[var][util.Platform()]
-        else:
-            trys = CompilerSearch[var]['default']
+        trys = CompilerSearch[var]['default']
     for i in trys:
-        cc = TryVerifyCompiler(env, var, i)
-        if cc:
+        if cc := TryVerifyCompiler(env, var, i):
             return cc
 
     # Try for Emscripten. This only works with an env override.
     if 'emcc' in env.get(var, ''):
-        cc = DetectEmscripten(env, var)
-        if cc:
+        if cc := DetectEmscripten(env, var):
             return cc
 
     # Fail.
-    raise Exception('Unable to find a suitable ' + var + ' compiler')
+    raise Exception(f'Unable to find a suitable {var} compiler')
 
 def DetectEmscripten(env, var):
     cmd = env[var]
@@ -120,8 +116,8 @@ def DetectEmscripten(env, var):
         m = re.match('#define\s+([A-Za-z_][A-Za-z0-9_]*)\s*(.*)', line)
         if m is None:
             continue
-        macro = m.group(1)
-        value = m.group(2)
+        macro = m[1]
+        value = m[2]
         defs[macro] = value
 
     if '__EMSCRIPTEN__' not in defs:
@@ -140,12 +136,9 @@ def VerifyCompiler(env, mode, cmd, vendor):
         args.extend(env['CFLAGS'].split())
     if mode == 'CXX' and 'CXXFLAGS' in env:
         args.extend(env['CXXFLAGS'].split())
-    if mode == 'CXX':
-        filename = 'test.cpp'
-    else:
-        filename = 'test.c'
-    file = open(filename, 'w')
-    file.write("""
+    filename = 'test.cpp' if mode == 'CXX' else 'test.c'
+    with open(filename, 'w') as file:
+        file.write("""
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -184,11 +177,10 @@ int main()
   exit(0);
 }
 """)
-    file.close()
     if mode == 'CC':
-        executable = 'test' + util.ExecutableSuffix
+        executable = f'test{util.ExecutableSuffix}'
     elif mode == 'CXX':
-        executable = 'testp' + util.ExecutableSuffix
+        executable = f'testp{util.ExecutableSuffix}'
 
     # Make sure the exe is gone.
     if os.path.exists(executable):
@@ -208,7 +200,7 @@ int main()
                  'Checking {0} compiler (vendor test {1})... '.format(mode, vendor),
                  util.ConsoleBlue, '{0}'.format(args), util.ConsoleNormal)
     p = util.CreateProcess(args)
-    if p == None:
+    if p is None:
         print('not found')
         return False
     if util.WaitForProcess(p) != 0:
@@ -221,7 +213,7 @@ int main()
 
     exe = util.MakePath('.', executable)
     p = util.CreateProcess([executable], executable = exe)
-    if p == None:
+    if p is None:
         print('failed to create executable with {0}'.format(cmd))
         return False
     if util.WaitForProcess(p) != 0:

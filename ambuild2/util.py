@@ -27,9 +27,7 @@ def NormalizeArchString(arch):
         return 'x86'
     if arch.lower().startswith(('arm64', 'armv8', 'aarch64')):
         return 'arm64'
-    if not arch:
-        return 'unknown'
-    return arch
+    return 'unknown' if not arch else arch
 
 # Advanced version - split into (arch, subarch).
 def DecodeArchString(arch):
@@ -64,14 +62,10 @@ def Platform():
         return 'netbsd'
     if IsSolaris():
         return 'solaris'
-    if IsCygwin():
-        return 'cygwin'
-    return 'unknown'
+    return 'cygwin' if IsCygwin() else 'unknown'
 
 def DetectHostAbi():
-    if Architecture == 'arm':
-        return DetectHostArmAbi()
-    return ''
+    return DetectHostArmAbi() if Architecture == 'arm' else ''
 
 def DetectHostArmAbi():
     if not IsLinux():
@@ -94,7 +88,7 @@ def DetectHostArmAbi():
         output = subprocess.check_output(argv)
         output = output.decode('utf-8')
     except Exception as e:
-        sys.stderr.write('Could not determine ARM ABI: {}'.format(e))
+        sys.stderr.write(f'Could not determine ARM ABI: {e}')
         return 'unknown'
 
     lines = output.split('\n')
@@ -105,16 +99,16 @@ def DetectHostArmAbi():
     return 'gnueabi'
 
 def IsLinux():
-    return sys.platform[0:5] == 'linux'
+    return sys.platform[:5] == 'linux'
 
 def IsFreeBSD():
-    return sys.platform[0:7] == 'freebsd'
+    return sys.platform[:7] == 'freebsd'
 
 def IsNetBSD():
-    return sys.platform[0:6] == 'netbsd'
+    return sys.platform[:6] == 'netbsd'
 
 def IsOpenBSD():
-    return sys.platform[0:7] == 'openbsd'
+    return sys.platform[:7] == 'openbsd'
 
 def IsWindows():
     return sys.platform == 'win32'
@@ -123,10 +117,10 @@ def IsCygwin():
     return sys.platform == 'cygwin'
 
 def IsMac():
-    return sys.platform == 'darwin' or sys.platform[0:6] == 'Darwin'
+    return sys.platform == 'darwin' or sys.platform[:6] == 'Darwin'
 
 def IsSolaris():
-    return sys.platform[0:5] == 'sunos'
+    return sys.platform[:5] == 'sunos'
 
 def IsUnixy():
     return not IsWindows()
@@ -134,11 +128,7 @@ def IsUnixy():
 def IsBSD():
     return IsMac() or IsFreeBSD() or IsOpenBSD() or IsNetBSD()
 
-if IsWindows():
-    ExecutableSuffix = '.exe'
-else:
-    ExecutableSuffix = ''
-
+ExecutableSuffix = '.exe' if IsWindows() else ''
 if IsWindows():
     SharedLibSuffix = '.dll'
 elif sys.platform == 'darwin':
@@ -146,15 +136,8 @@ elif sys.platform == 'darwin':
 else:
     SharedLibSuffix = '.so'
 
-if IsUnixy():
-    StaticLibSuffix = '.a'
-else:
-    StaticLibSuffix = '.lib'
-
-if IsWindows():
-    StaticLibPrefix = ''
-else:
-    StaticLibPrefix = 'lib'
+StaticLibSuffix = '.a' if IsUnixy() else '.lib'
+StaticLibPrefix = '' if IsWindows() else 'lib'
 
 if IsWindows():
     import ctypes
@@ -169,8 +152,8 @@ if IsWindows():
         IMAGE_FILE_MACHINE_ARM64 = 0xAA64
 
         # Create simplistic bidirectional dictionary from list of pairs.
-        def bidict(kv_pairs):
-            return dict([(entry[1], entry[0]) for entry in kv_pairs] + kv_pairs)
+        def bidict(self):
+            return dict([(entry[1], entry[0]) for entry in kv_pairs] + self)
 
         # Create dictionary bidirectionally mapping PE machine types to architecture strings.
         kMachineTypes = bidict([
@@ -318,15 +301,13 @@ def NeedsSanitizing(env):
     if sys.version_info[0] >= 3:
         return False
 
-    for key in env:
-        if isinstance(key, unicode) or isinstance(env[key], unicode):
-            return True
-    return False
+    return any(
+        isinstance(key, unicode) or isinstance(env[key], unicode)
+        for key in env
+    )
 
 def CreateProcess(argv, executable = None, env = None, no_raise = True):
-    pargs = {'args': argv}
-    pargs['stdout'] = subprocess.PIPE
-    pargs['stderr'] = subprocess.PIPE
+    pargs = {'args': argv, 'stdout': subprocess.PIPE, 'stderr': subprocess.PIPE}
     if executable != None:
         pargs['executable'] = executable
 
@@ -402,11 +383,7 @@ def Execute(argv, shell = False, env = None):
 def typeof(x):
     return builtins.type(x)
 
-if str == bytes:
-    # Python 2.7. sqlite blob is buffer
-    BlobType = buffer
-else:
-    BlobType = bytes
+BlobType = buffer if str == bytes else bytes
 
 def Unpickle(blob):
     if type(blob) != bytes:
@@ -424,9 +401,7 @@ def CompatPickle(obj):
     return pickle.dumps(obj, PICKLE_PROTOCOL)
 
 def str2b(s):
-    if bytes is str:
-        return s
-    return bytes(s, 'utf8')
+    return s if bytes is str else bytes(s, 'utf8')
 
 sReadIncludes = 0
 sLookForIncludeGuard = 1
@@ -443,7 +418,7 @@ def ParseGCCDeps(text):
         line = line.replace('\r', '')
         if state == sReadIncludes:
             m = re.match('[\.!x]\.*\s+(.+)\s*$', line)
-            if m == None:
+            if m is None:
                 state = sLookForIncludeGuard
             else:
                 name = m.groups()[0]
@@ -460,7 +435,7 @@ def ParseGCCDeps(text):
                 state = sReadIncludes
                 strip = False
         elif state == sFoundIncludeGuard:
-            if not line in deps:
+            if line not in deps:
                 strip = False
                 state = sIgnoring
         if not strip and len(line):
@@ -479,11 +454,11 @@ def ParseMSVCDeps(out, inclusion_pattern = None):
     out = out.replace('\r', '\n')
     for line in out.split('\n'):
         m = re.search(pattern, line)
-        if m != None:
-            file = m.group(1).strip()
-            deps.append(file)
-        else:
+        if m is None:
             new_text += line + '\n'
+        else:
+            file = m[1].strip()
+            deps.append(file)
     return new_text, deps
 
 def ParseFXCDeps(out):
@@ -502,7 +477,7 @@ def ParseFXCDeps(out):
             continue
         m = re.match('Resolved to \[(.+)\]', line)
         if m is not None:
-            deps.append(m.group(1).strip())
+            deps.append(m[1].strip())
             continue
         new_text += line + '\n'
 
@@ -561,7 +536,6 @@ elif IsWindows():
     def SwitchColor(fp, color):
         import ctypes
 
-        STD_OUTPUT_HANDLE = -11
         STD_ERROR_HANDLE = -12
 
         # Ensure previously colored text is flushed before changing colors again. Otherwise text may
@@ -570,6 +544,7 @@ elif IsWindows():
 
         std = None
         if fp == sys.stdout:
+            STD_OUTPUT_HANDLE = -11
             std = STD_OUTPUT_HANDLE
         elif fp == sys.stderr:
             std = STD_ERROR_HANDLE
@@ -675,7 +650,7 @@ def DecodeConsoleText(origin, text):
     return text.decode('utf8', 'replace')
 
 def WriteEncodedText(fd, text):
-    if not hasattr(fd, 'encoding') or fd.encoding == None:
+    if not hasattr(fd, 'encoding') or fd.encoding is None:
         text = text.encode(locale.getpreferredencoding(), 'replace')
     fd.write(text)
 
@@ -741,13 +716,10 @@ def BuildEnv(cmds, env = None):
     if env is None:
         env = os.environ.copy()
     for cmd, key, value in cmds:
-        if cmd == 'replace':
+        if cmd == 'add' and key in env:
+            env[key] += value
+        elif cmd in ['add', 'replace']:
             env[key] = value
-        elif cmd == 'add':
-            if key in env:
-                env[key] += value
-            else:
-                env[key] = value
     return env
 
 # Build a stable, hashable list (eg tuple) from a dictionary.
@@ -760,10 +732,7 @@ def BuildTupleFromDict(obj):
 
 # Build a dictionary from a tuple of key, value tuples.
 def BuildDictFromTuple(tup):
-    obj = {}
-    for key, value in tup:
-        obj[key] = value
-    return obj
+    return dict(tup)
 
 # Replace anything from a filename that doesn't convert to an identifier.
 def MakeLexicalFilename(file):

@@ -37,9 +37,7 @@ class TaskTreeBuilder(object):
         return self.cmd_list, self.tree_leafs
 
     def findTask(self, node):
-        if node in self.cache:
-            return self.cache[node]
-        return self.enqueueCommand(node)
+        return self.cache[node] if node in self.cache else self.enqueueCommand(node)
 
     def enqueueCommand(self, node):
         assert node not in self.cache
@@ -78,9 +76,9 @@ class Builder(object):
         leafs = deque(self.leafs)
         while len(leafs):
             leaf = leafs.popleft()
-            print('task ' + str(format(counter)) + ': ' + leaf.format())
+            print(f'task {str(format(counter))}: {leaf.format()}')
             for output in leaf.outputs:
-                print('  -> ' + output)
+                print(f'  -> {output}')
 
             for child in leaf.outgoing:
                 child.incoming.remove(leaf)
@@ -91,15 +89,14 @@ class Builder(object):
 
     def update(self):
         for entry in self.graph.create:
-            if entry.type == nodetypes.Mkdir:
-                util.con_out(util.ConsoleBlue, '[create] ', util.ConsoleGreen, entry.format(),
-                             util.ConsoleNormal)
-                # The path might already exist because we mkdir -p and don't bother
-                # ordering.
-                if not os.path.exists(entry.path):
-                    os.makedirs(entry.path)
-            else:
+            if entry.type != nodetypes.Mkdir:
                 raise Exception('Unknown entry type: {0}'.format(entry.type))
+            util.con_out(util.ConsoleBlue, '[create] ', util.ConsoleGreen, entry.format(),
+                         util.ConsoleNormal)
+            # The path might already exist because we mkdir -p and don't bother
+            # ordering.
+            if not os.path.exists(entry.path):
+                os.makedirs(entry.path)
         if not len(self.leafs):
             return TaskMaster.BUILD_NO_CHANGES, None
 
@@ -145,8 +142,7 @@ class Builder(object):
             util.con_err(util.ConsoleRed, 'Path: ', util.ConsoleBlue, path, util.ConsoleNormal)
             return None
 
-        rel_to_objdir = util.RelPathIfCommon(path, self.cx.buildPath)
-        if rel_to_objdir:
+        if rel_to_objdir := util.RelPathIfCommon(path, self.cx.buildPath):
             entry = self.cx.db.query_path(rel_to_objdir)
             if not entry:
                 util.con_err(
@@ -170,10 +166,10 @@ class Builder(object):
             entry = self.cx.db.query_path(path)
             if not entry:
                 entry = self.addDiscoveredSource(path)
-                if not entry:
-                    return None
+            if not entry:
+                return None
 
-            if entry.type != nodetypes.Source and entry.type != nodetypes.Output:
+            if entry.type not in [nodetypes.Source, nodetypes.Output]:
                 util.con_err(util.ConsoleRed,
                              'Fatal error in DAG construction! Dependency is not a file input.',
                              util.ConsoleNormal)
@@ -189,7 +185,7 @@ class Builder(object):
         # predecessor links than successor links that way.
         assert source != target
 
-        queue = set([target])
+        queue = {target}
         seen = set()
         while len(queue):
             node = queue.pop()

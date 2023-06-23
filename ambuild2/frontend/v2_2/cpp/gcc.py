@@ -61,17 +61,14 @@ class GCCLookalike(Vendor):
         return ['-c', sourceFile, '-o', objFile]
 
     def makePchArgv(self, source_file, obj_file, source_type):
-        return ['-c', '-x', source_type + '-header', source_file, '-o', obj_file]
+        return ['-c', '-x', f'{source_type}-header', source_file, '-o', obj_file]
 
     def programLinkArgv(self, cmd_argv, files, linkFlags, symbolFile, outputFile):
         return cmd_argv + files + linkFlags + ['-o', outputFile]
 
     def libLinkArgv(self, cmd_argv, files, linkFlags, symbolFile, outputFile):
         argv = cmd_argv + files + linkFlags
-        if util.IsMac():
-            argv += ['-dynamiclib']
-        else:
-            argv += ['-shared']
+        argv += ['-dynamiclib'] if util.IsMac() else ['-shared']
         argv += ['-o', outputFile]
         return argv
 
@@ -102,7 +99,7 @@ class GCC(GCCLookalike):
         return False
 
     def nameForPch(self, source_file):
-        return source_file + '.gch'
+        return f'{source_file}.gch'
 
     def formatPchInclude(self, build_root, output_path, pch):
         local_path = os.path.relpath(pch.header_file.path, output_path)
@@ -125,14 +122,14 @@ class Clang(GCCLookalike):
         return 'clang'
 
     def like(self, name):
-        return name == 'gcc' or name == 'clang' or name == self.name
+        return name in ['gcc', 'clang', self.name]
 
     @property
     def debugInfoArgv(self):
         return ['-g3']
 
     def nameForPch(self, source_file):
-        return source_file + '.pch'
+        return f'{source_file}.pch'
 
     def formatPchInclude(self, build_root, output_path, pch):
         pch_path = os.path.relpath(pch.pch_file.path, output_path)
@@ -148,10 +145,10 @@ class Emscripten(Clang):
         super(Emscripten, self).__init__(version, 'emscripten')
 
     def nameForExecutable(self, name):
-        return name + '.js'
+        return f'{name}.js'
 
     def nameForSharedLibrary(self, name):
-        return name + '.bc'
+        return f'{name}.bc'
 
     def nameForStaticLibrary(self, name):
         return util.StaticLibPrefix + name + '.a'
@@ -165,7 +162,7 @@ class Emscripten(Clang):
         return 'emscripten'
 
     def like(self, name):
-        return name == 'gcc' or name == 'clang' or name == 'emscripten-clang' or name == 'emscripten'
+        return name in ['gcc', 'clang', 'emscripten-clang', 'emscripten']
 
     @property
     def debugInfoArgv(self):

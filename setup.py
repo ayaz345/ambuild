@@ -37,7 +37,7 @@ if __name__ == '__main__':
             for subdir in ['ambuild', 'ambuild2']:
                 subpath = os.path.join(path, subdir)
                 if os.path.exists(subpath):
-                    sys.stderr.write('\t{}\n'.format(subpath))
+                    sys.stderr.write(f'\t{subpath}\n')
 
         sys.stderr.write('Aborting installation.\n')
         sys.stderr.flush()
@@ -50,11 +50,10 @@ if __name__ == '__main__':
         raise SystemError('py-sqlite3 must be installed')
 
     amb_scripts = []
-    if sys.platform != 'win32':
-        if sys.platform == 'darwin':
-            amb_scripts.append('scripts/ambuild_dsymutil_wrapper.sh')
-        else:
-            amb_scripts.append('scripts/ambuild_objcopy_wrapper.sh')
+    if sys.platform == 'darwin':
+        amb_scripts.append('scripts/ambuild_dsymutil_wrapper.sh')
+    elif sys.platform != 'win32':
+        amb_scripts.append('scripts/ambuild_objcopy_wrapper.sh')
 
     setup(name = 'AMBuild',
           version = '2.0',

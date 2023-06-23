@@ -51,9 +51,7 @@ class MSVC(Vendor):
         return name == 'msvc'
 
     def parse_debuginfo(self, debuginfo):
-        if debuginfo == 'bundled':
-            return 'separate'
-        return debuginfo
+        return 'separate' if debuginfo == 'bundled' else debuginfo
 
     @staticmethod
     def IncludePath(outputPath, includePath):
@@ -73,10 +71,10 @@ class MSVC(Vendor):
         return ['/I', self.IncludePath(outputPath, includePath)]
 
     def preprocessArgs(self, sourceFile, outFile):
-        return ['/showIncludes', '/nologo', '/P', '/c', sourceFile, '/Fi' + outFile]
+        return ['/showIncludes', '/nologo', '/P', '/c', sourceFile, f'/Fi{outFile}']
 
     def objectArgs(self, sourceFile, objFile):
-        return ['/showIncludes', '/nologo', '/c', sourceFile, '/Fo' + objFile]
+        return ['/showIncludes', '/nologo', '/c', sourceFile, f'/Fo{objFile}']
 
 class CompatGCC(Vendor):
     def __init__(self, name, command, version):
@@ -111,7 +109,7 @@ class Clang(CompatGCC):
         self.debuginfo_argv = ['-g3']
 
     def like(self, name):
-        return name == 'gcc' or name == 'clang' or name == self.vendor_name
+        return name in ['gcc', 'clang', self.vendor_name]
 
 class Emscripten(Clang):
     def __init__(self, command, version):
@@ -119,12 +117,10 @@ class Emscripten(Clang):
         self.name = 'emscripten'
 
     def like(self, name):
-        if name == 'emscripten':
-            return True
-        return super(Emscripten, self).like(name)
+        return True if name == 'emscripten' else super(Emscripten, self).like(name)
 
     def nameForExecutable(self, name):
-        return name + '.js'
+        return f'{name}.js'
 
 class SunPro(Vendor):
     def __init__(self, command, version):

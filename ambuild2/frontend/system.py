@@ -44,7 +44,7 @@ class System(object):
     def triple(self):
         suffix = ''
         if self.abi:
-            suffix += '-' + self.abi
-        return '{}-{}{}{}'.format(self.platform, self.arch, self.subarch, suffix)
+            suffix += f'-{self.abi}'
+        return f'{self.platform}-{self.arch}{self.subarch}{suffix}'
 
 System.Host = System(util.Platform(), util.Architecture, util.SubArch, util.DetectHostAbi())

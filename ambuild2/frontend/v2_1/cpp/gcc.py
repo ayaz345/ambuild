@@ -55,10 +55,7 @@ class GCCLookalike(Vendor):
 
     def libLinkArgv(self, cmd_argv, files, linkFlags, symbolFile, outputFile):
         argv = cmd_argv + files + linkFlags
-        if util.IsMac():
-            argv += ['-dynamiclib']
-        else:
-            argv += ['-shared']
+        argv += ['-dynamiclib'] if util.IsMac() else ['-shared']
         argv += ['-o', outputFile]
         return argv
 
@@ -101,7 +98,7 @@ class Clang(GCCLookalike):
         return 'clang'
 
     def like(self, name):
-        return name == 'gcc' or name == 'clang' or name == self.name
+        return name in ['gcc', 'clang', self.name]
 
     @property
     def debugInfoArgv(self):
@@ -113,10 +110,10 @@ class Emscripten(Clang):
         super(Emscripten, self).__init__(version, 'emscripten')
 
     def nameForExecutable(self, name):
-        return name + '.js'
+        return f'{name}.js'
 
     def nameForSharedLibrary(self, name):
-        return name + '.bc'
+        return f'{name}.bc'
 
     def nameForStaticLibrary(self, name):
         return util.StaticLibPrefix + name + '.a'
@@ -130,7 +127,7 @@ class Emscripten(Clang):
         return 'emscripten'
 
     def like(self, name):
-        return name == 'gcc' or name == 'clang' or name == 'emscripten-clang' or name == 'emscripten'
+        return name in ['gcc', 'clang', 'emscripten-clang', 'emscripten']
 
     @property
     def debugInfoArgv(self):

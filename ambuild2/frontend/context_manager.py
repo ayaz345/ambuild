@@ -82,7 +82,7 @@ all:
 """.format(exe = sys.executable, py = build_py))
 
     def createGenerator(self, name):
-        sys.stderr.write('Unrecognized build generator: {}\n'.format(name))
+        sys.stderr.write(f'Unrecognized build generator: {name}\n')
         sys.exit(1)
 
     # name is None when a generator is already set.

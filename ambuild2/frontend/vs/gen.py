@@ -127,10 +127,7 @@ class Generator(BaseGenerator):
 
     # Overridden.
     def addFolder(self, cx, folder):
-        parentFolderNode = None
-        if cx is not None:
-            parentFolderNode = cx.localFolder
-
+        parentFolderNode = cx.localFolder if cx is not None else None
         _, path = paths.ResolveFolder(parentFolderNode, folder)
         if path in self.files_:
             entry = self.files_[path]

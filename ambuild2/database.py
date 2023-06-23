@@ -158,10 +158,10 @@ class Database(object):
     try:
       query = "select val from vars where key = 'db_version'"
       cursor = self.cn.execute(query)
-      row = cursor.fetchone()
-      if not row:
+      if row := cursor.fetchone():
+        version = int(row[0])
+      else:
         raise Exception('Database seems to be misconfigured - cannot read version')
-      version = int(row[0])
     except:
       version = 1
 
@@ -279,9 +279,7 @@ class Database(object):
   def query_var(self, var):
     cursor = self.cn.execute("select val from vars where key = ?", (var,))
     row = cursor.fetchone()
-    if row is None:
-      return None
-    return row[0]
+    return None if row is None else row[0]
 
   def set_var(self, var, value):
     self.cn.execute("insert or replace into vars (key, val) values (?, ?)", (var, value))
@@ -297,13 +295,12 @@ class Database(object):
     assert path not in self.path_cache_
     assert not os.path.isabs(path)
     assert not folder_entry or os.path.split(path)[0] == folder_entry.path
-    assert kind == nodetypes.Output or kind == nodetypes.SharedOutput
+    assert kind in [nodetypes.Output, nodetypes.SharedOutput]
 
     return self.add_file(kind, path, folder_entry)
 
   def find_or_add_source(self, path):
-    node = self.query_path(path)
-    if node:
+    if node := self.query_path(path):
       assert node.type == nodetypes.Source
       return node
 
@@ -316,11 +313,7 @@ class Database(object):
     return self.add_file(nodetypes.Source, path)
 
   def add_file(self, type, path, folder_entry = None):
-    if folder_entry:
-      folder_id = folder_entry.id
-    else:
-      folder_id = None
-
+    folder_id = folder_entry.id if folder_entry else None
     query = "insert into nodes (type, path, folder) values (?, ?, ?)"
 
     cursor = self.cn.execute(query, (type, path, folder_id))
@@ -331,19 +324,15 @@ class Database(object):
     )
 
   def update_command(self, entry, type, folder, data, dirty, refactoring, env_data):
-    if not data:
-      blob = None
-    else:
-      blob = util.BlobType(util.CompatPickle(data))
-
+    blob = None if not data else util.BlobType(util.CompatPickle(data))
     # Note: it's a little gross/inconsistent how updates are handled. It seems
     # like Database should not be detecting refactoring, and then, we would not
     # need to pass env_id (which is stored in Entry for only this purpose).
     only_env_differs = False
     if entry.type == type and \
-       entry.folder == folder and \
-       entry.blob == data and \
-       (dirty == nodetypes.ALWAYS_DIRTY) == (entry.dirty == nodetypes.ALWAYS_DIRTY):
+         entry.folder == folder and \
+         entry.blob == data and \
+         (dirty == nodetypes.ALWAYS_DIRTY) == (entry.dirty == nodetypes.ALWAYS_DIRTY):
       if nodetypes.IsSameEnvData(entry.tools_env, env_data):
         return False
       only_env_differs = True
@@ -377,11 +366,7 @@ class Database(object):
                      util.ConsoleNormal)
       raise Exception('Refactoring error: command changed')
 
-    if not folder:
-      folder_id = None
-    else:
-      folder_id = folder.id
-
+    folder_id = None if not folder else folder.id
     query = """
       update nodes
       set
@@ -396,15 +381,8 @@ class Database(object):
     return True
 
   def add_command(self, type, folder, data, dirty, env_data):
-    if not data:
-      blob = None
-    else:
-      blob = util.BlobType(util.CompatPickle(data))
-    if not folder:
-      folder_id = None
-    else:
-      folder_id = folder.id
-
+    blob = None if not data else util.BlobType(util.CompatPickle(data))
+    folder_id = None if not folder else folder.id
     env_id = None
     tools_env = None
     if env_data is not None:
@@ -494,10 +472,7 @@ class Database(object):
     """
     cursor = self.cn.execute(query, (path,))
     row = cursor.fetchone()
-    if not row:
-      return None
-
-    return self.import_node(row[0], row[1:])
+    return None if not row else self.import_node(row[0], row[1:])
 
   def import_node(self, id, row):
     assert id not in self.node_cache_
@@ -508,11 +483,7 @@ class Database(object):
       folder = row[4]
     else:
       folder = self.query_node(row[4])
-    if not row[5]:
-      blob = None
-    else:
-      blob = util.Unpickle(row[5])
-
+    blob = None if not row[5] else util.Unpickle(row[5])
     node = Entry(id=id,
                  type=row[0],
                  path=row[3],
@@ -606,10 +577,7 @@ class Database(object):
 
   def query_shared_commands_of(self, node):
     query = "select incoming from shared_outputs where outgoing = ?"
-    commands = []
-    for row in self.cn.execute(query, (node.id,)):
-      commands.append(self.query_node(row[0]))
-    return commands
+    return [self.query_node(row[0]) for row in self.cn.execute(query, (node.id,))]
 
   def query_dynamic_inputs(self, node):
     if node.dynamic_inputs is not None:
@@ -631,7 +599,7 @@ class Database(object):
     cursor = self.cn.execute(query, (env_id,))
     row = cursor.fetchone()
     if not row:
-      raise Exception('Database error, invalid environment id {}'.format(env_id))
+      raise Exception(f'Database error, invalid environment id {env_id}')
 
     tools_env = nodetypes.ToolsEnv(env_id, util.Unpickle(row[0]))
     self.env_cache_[env_id] = tools_env
@@ -810,7 +778,7 @@ class Database(object):
     self.drop_entry(output)
 
   def drop_output(self, output):
-    assert output.type == nodetypes.Output or output.type == nodetypes.SharedOutput
+    assert output.type in [nodetypes.Output, nodetypes.SharedOutput]
     util.rm_path(output.path)
     self.drop_entry(output)
 
@@ -869,7 +837,7 @@ class Database(object):
       self.cn.execute("DELETE FROM environments WHERE rowid = ?", (row[0],))
 
   def change_to_folder(self, entry):
-    assert entry.type == nodetypes.Output or entry.type == nodetypes.SharedOutput
+    assert entry.type in [nodetypes.Output, nodetypes.SharedOutput]
     self.drop_links(entry)
     self.cn.execute("update nodes set type = 'mkd' where id = ?", (entry.id,))
     entry.type = nodetypes.Mkdir

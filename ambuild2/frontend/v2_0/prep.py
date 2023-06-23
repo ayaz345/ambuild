@@ -70,7 +70,7 @@ class Preparer(object):
 
     @staticmethod
     def default_build_folder(prep):
-        return 'obj-' + util.Platform() + '-' + platform.machine()
+        return f'obj-{util.Platform()}-{platform.machine()}'
 
     def Configure(self):
         v_options, args = self.options.parse_args()

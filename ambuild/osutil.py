@@ -6,19 +6,16 @@ import subprocess
 import multiprocessing
 
 def IsWindows():
-	return sys.platform == 'win32' or sys.platform == 'cygwin'
+	return sys.platform in ['win32', 'cygwin']
 
 def IsMac():
 	return sys.platform == 'darwin'
 
 def IsUnixy():
-	return sys.platform[0:5] == 'linux' or IsMac()
+	return sys.platform[:5] == 'linux' or IsMac()
 
 def ExecutableSuffix():
-	if IsWindows():
-		return '.exe'
-	else:
-		return ''
+	return '.exe' if IsWindows() else ''
 
 def SharedLibSuffix():
 	if IsWindows():
@@ -29,15 +26,10 @@ def SharedLibSuffix():
 		return '.so'
 
 def StaticLibSuffix():
-	if IsUnixy():
-		return '.a'
-	return '.lib'
+	return '.a' if IsUnixy() else '.lib'
 
 def StaticLibPrefix():
-	if IsWindows():
-		return ''
-	else:
-		return 'lib'
+	return '' if IsWindows() else 'lib'
 
 def DecodeConsoleText(origin, text):
 	try:
@@ -58,9 +50,7 @@ def WaitForProcess(process):
 	return process.returncode
 
 def CreateProcess(argv, executable = None):
-	pargs = { 'args': argv }
-	pargs['stdout'] = subprocess.PIPE
-	pargs['stderr'] = subprocess.PIPE
+	pargs = {'args': argv, 'stdout': subprocess.PIPE, 'stderr': subprocess.PIPE}
 	if executable != None:
 		pargs['executable'] = executable
 	try:
@@ -105,8 +95,7 @@ def FileExists(file):
 	return False
 
 def GetFileTime(file):
-	time = os.path.getmtime(file)
-	return time
+	return os.path.getmtime(file)
 
 def IsFileNewer(this, that):
 	this = GetFileTime(this)

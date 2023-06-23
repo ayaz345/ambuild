@@ -34,11 +34,10 @@ class Job:
 		self.tasks = []
 		self.name = name
 		self.runner = runner
-		if workFolder == None:
-			self.workFolder = name
-		else:
-			self.workFolder = workFolder
-		self.cache = Cache(os.path.join(runner.outputFolder, '.ambuild', name + '.cache'))
+		self.workFolder = name if workFolder is None else workFolder
+		self.cache = Cache(
+			os.path.join(runner.outputFolder, '.ambuild', f'{name}.cache')
+		)
 		#ignore if cache file doesnt exist yet
 		try:
 			self.cache.LoadCache()
@@ -66,20 +65,12 @@ class Job:
 
 	def run(self, master):
 		for group in self.tasks:
-			if 1: #group.mustBeSerial:
-				for task in group.cmds:
-					r = AsyncRun(master, self, task)
-					try:
-						r.run()
-					except Exception as e:
-						self.cache.WriteCache()
-						raise e
+			for task in group.cmds:
+				r = AsyncRun(master, self, task)
+				try:
+					r.run()
+				except Exception as e:
 					self.cache.WriteCache()
-			else:
-				pool = worker.WorkerPool(master.numCPUs * 4)
-				tasks = [AsyncRun(master, self, task) for task in group.cmds]
-				failed = pool.RunJobs(tasks)
+					raise e
 				self.cache.WriteCache()
-				if len(failed) > 0:
-					raise failed[0]['e']
 

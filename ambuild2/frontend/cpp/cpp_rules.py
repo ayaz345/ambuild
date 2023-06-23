@@ -76,7 +76,7 @@ class RulesParser(object):
             raise Exception('Invalid operator or multiple operators, expected two components')
 
         if parts[0] not in self.inputs_:
-            raise Exception('Unknown rule variable "{}"'.format(parts[0]))
+            raise Exception(f'Unknown rule variable "{parts[0]}"')
         if not op(self.inputs_[parts[0]], parts[1]):
             return
 

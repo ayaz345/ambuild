@@ -22,9 +22,7 @@ from ambuild2 import util
 #
 # The parent folder and resolved folder are returned as a tuple.
 def ResolveFolder(parent, folder):
-    parent_path = ''
-    if parent:
-        parent_path = parent.path
+    parent_path = parent.path if parent else ''
     path = os.path.normpath(os.path.join(parent_path, folder))
 
     if path.startswith('..'):

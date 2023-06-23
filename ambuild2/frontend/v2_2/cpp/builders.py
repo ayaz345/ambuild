@@ -24,10 +24,8 @@ from ambuild2.frontend.v2_2.cpp.deptypes import PchNodes
 from ambuild2.util import MakeLexicalFilename
 
 def TargetSuffix(target):
-    base = '{}-{}{}'.format(target.platform, target.arch, target.subarch)
-    if target.abi:
-        return base + '-' + target.abi
-    return base
+    base = f'{target.platform}-{target.arch}{target.subarch}'
+    return f'{base}-{target.abi}' if target.abi else base
 
 class BuilderProxy(object):
     def __init__(self, builder, compiler, name):
@@ -68,10 +66,7 @@ class Project(object):
             self.builders_.append(builder)
 
     def generate(self, generator, cx):
-        outputs = []
-        for builder in self.builders_:
-            outputs += [builder.generate(generator, cx)]
-        return outputs
+        return [builder.generate(generator, cx) for builder in self.builders_]
 
     def Configure(self, compiler, name, tag):
         proxy = BuilderProxy(self, compiler.clone(), name)
@@ -234,7 +229,7 @@ class ObjectArgvBuilder(object):
         task.outputs += [objectFile]
 
         if self.vendor.emits_dependency_file:
-            dep_file = encodedName + '.d'
+            dep_file = f'{encodedName}.d'
             task.outputs += [dep_file]
             task.argv += self.vendor.dependencyArgv(dep_file)
             task.dep_info = ('md', dep_file)
@@ -244,7 +239,7 @@ class ObjectArgvBuilder(object):
         return task
 
     def buildRcItem(self, inputObj, sourceFile, encodedName):
-        objectFile = encodedName + '.res'
+        objectFile = f'{encodedName}.res'
 
         defines = self.compiler.defines + self.compiler.cxxdefines + self.compiler.rcdefines
         cl_argv = self.cc_argv[:]
@@ -253,7 +248,7 @@ class ObjectArgvBuilder(object):
             if isinstance(include, PchNodes):
                 continue
             self.formatInclude(None, cl_argv, include)
-        cl_argv += self.vendor.preprocessArgv(sourceFile, encodedName + '.i')
+        cl_argv += self.vendor.preprocessArgv(sourceFile, f'{encodedName}.i')
 
         # Don't need this, yet, since Windows doesn't use this.
         assert not self.vendor.emits_dependency_file
@@ -265,9 +260,11 @@ class ObjectArgvBuilder(object):
             if isinstance(include, PchNodes):
                 continue
             rc_argv += ['/i', self.vendor.IncludePath(self.outputPath, include)]
-        rc_argv += ['/fo' + objectFile, sourceFile]
+        rc_argv += [f'/fo{objectFile}', sourceFile]
 
-        return RCFileTask(self, inputObj, [objectFile, encodedName + '.i'], cl_argv, rc_argv)
+        return RCFileTask(
+            self, inputObj, [objectFile, f'{encodedName}.i'], cl_argv, rc_argv
+        )
 
     def buildPchItem(self, input_obj, source_file):
         task = ObjectFileTask(self, input_obj, [], [])
@@ -288,7 +285,7 @@ class ObjectArgvBuilder(object):
         task.argv += self.vendor.makePchArgv(source_file, pch_file, self.parent.source_type)
 
         if self.vendor.emits_dependency_file:
-            dep_file = filename + '.d'
+            dep_file = f'{filename}.d'
             task.outputs += [dep_file]
             task.argv += self.vendor.dependencyArgv(dep_file)
             task.dep_info = ('md', dep_file)
@@ -492,11 +489,7 @@ class BinaryBuilder(BinaryBuilderBase):
         # If custom tools run, they may place new headers in the objdir. For now
         # we put them implicitly in the include path. We might need to make this
         # explicit (or the path customizable) later.
-        if must_include_builddir:
-            addl_include_dirs = [outputPath]
-        else:
-            addl_include_dirs = []
-
+        addl_include_dirs = [outputPath] if must_include_builddir else []
         builder = ObjectArgvBuilder(cx, self)
         builder.setOutputs(localFolderNode, outputPath)
         builder.setCompiler(module.compiler, addl_include_dirs, addl_source_deps)
@@ -575,19 +568,13 @@ class BinaryBuilder(BinaryBuilderBase):
             files.append(os.path.relpath(objPath, localBuildFolder))
 
         if self.linker_.pch_needs_source_file:
-            pch_objects = set([pch.object_file for pch in self.pch_nodes_])
-            for entry in pch_objects:
-                files.append(os.path.relpath(entry.path, localBuildFolder))
-
+            pch_objects = {pch.object_file for pch in self.pch_nodes_}
+            files.extend(
+                os.path.relpath(entry.path, localBuildFolder)
+                for entry in pch_objects
+            )
         # Build static libraries for shared libraries. This feature is currently disabled.
         self.static_link_step = None
-        if self.type == 'library' and False:
-            static_name = self.name_
-            if self.type == 'library' and self.linker_.behavior == 'msvc':
-                # Need to decorate the name since MSVC generates a .lib for dlls.
-                static_name = self.name_ + '_static'
-            self.static_link_step = self.computeLinkStep(cx, files, static_name, 'static')
-
         self.link_step = self.computeLinkStep(cx, files, self.name_, self.type)
 
     def computeLinkStep(self, cx, files, name, link_type):
@@ -600,20 +587,19 @@ class BinaryBuilder(BinaryBuilderBase):
         step.shared_outputs = []
         if self.linker_.behavior == 'msvc':
             if link_type != 'static' and '/INCREMENTAL:NO' not in step.argv:
-                step.shared_outputs += [step.base_name + '.ilk']
+                step.shared_outputs += [f'{step.base_name}.ilk']
 
-        if self.linker_.behavior == 'msvc':
             if self.type == 'library' and self.has_code_:
                 # In theory, .dlls should have exports, so MSVC will generate these
                 # files. If this turns out not to be true, we may have to get fancier.
-                step.outputs += [step.base_name + '.lib']
-                step.outputs += [step.base_name + '.exp']
+                step.outputs += [f'{step.base_name}.lib']
+                step.outputs += [f'{step.base_name}.exp']
 
         if self.linker_.like('emscripten'):
             if isinstance(self, Program):
                 # This might not be correct if the user is actually still using asm.js,
                 # we would need to look for `-s WASM=0` in the linker args to check.
-                step.outputs += [step.base_name + '.wasm']
+                step.outputs += [f'{step.base_name}.wasm']
 
         if self.compiler.symbol_files == 'separate' and link_type != 'static':
             self.performSymbolSteps(cx, step)
@@ -623,9 +609,9 @@ class BinaryBuilder(BinaryBuilderBase):
     def performSymbolSteps(self, cx, step):
         if self.linker_.family == 'msvc':
             # Note, pdb is last since we read the pdb as outputs[-1].
-            step.outputs += [self.name_ + '.pdb']
+            step.outputs += [f'{self.name_}.pdb']
         elif self.compiler.target.platform == 'mac':
-            bundle_folder = os.path.join(self.localFolder, self.outputFile + '.dSYM')
+            bundle_folder = os.path.join(self.localFolder, f'{self.outputFile}.dSYM')
             bundle_entry = cx.AddFolder(bundle_folder)
             bundle_layout = [
                 'Contents',
@@ -635,13 +621,13 @@ class BinaryBuilder(BinaryBuilderBase):
             for folder in bundle_layout:
                 cx.AddFolder(os.path.join(bundle_folder, folder))
             step.outputs += [
-                self.outputFile + '.dSYM/Contents/Info.plist',
-                self.outputFile + '.dSYM/Contents/Resources/DWARF/' + self.outputFile
+                f'{self.outputFile}.dSYM/Contents/Info.plist',
+                f'{self.outputFile}.dSYM/Contents/Resources/DWARF/{self.outputFile}',
             ]
             step.debug_entry = bundle_entry
             step.argv = ['ambuild_dsymutil_wrapper.sh', self.outputFile] + step.argv
         elif self.compiler.target.platform == 'linux':
-            step.outputs += [self.outputFile + '.dbg']
+            step.outputs += [f'{self.outputFile}.dbg']
             step.argv = ['ambuild_objcopy_wrapper.sh', self.outputFile] + step.argv
 
     def computeLinkerOutputFile(self, name, link_type):
@@ -651,7 +637,7 @@ class BinaryBuilder(BinaryBuilderBase):
             return self.compiler.vendor.nameForSharedLibrary(name)
         elif link_type == 'static':
             return self.compiler.vendor.nameForStaticLibrary(name)
-        raise Exception('Unknown link type: {}'.format(link_type))
+        raise Exception(f'Unknown link type: {link_type}')
 
     def computeLinkerArgv(self, cx, files, name, link_type):
         output_file = self.computeLinkerOutputFile(name, link_type)
@@ -742,14 +728,14 @@ class PrecompiledHeaders(BinaryBuilderBase):
         pass
 
     def generate(self, generator, cx):
-        header_filename = self.name_ + '.h'
+        header_filename = f'{self.name_}.h'
         header_path = os.path.join(self.localFolder, header_filename)
-        header_guard = '_include_guard_{}'.format(MakeLexicalFilename(header_path))
+        header_guard = f'_include_guard_{MakeLexicalFilename(header_path)}'
 
         if self.source_type == 'c':
-            source_filename = self.name_ + '.c'
+            source_filename = f'{self.name_}.c'
         else:
-            source_filename = self.name_ + '.cpp'
+            source_filename = f'{self.name_}.cpp'
         source_path = os.path.join(self.localFolder, source_filename)
         source_text = cpp_utils.CreateSingleIncludeSource(header_filename)
         source_blob = source_text.encode('utf-8')

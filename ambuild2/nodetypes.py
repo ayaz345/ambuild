@@ -75,10 +75,10 @@ NodeNames = {
 }
 
 def IsFile(type):
-    return type == Output or type == Source
+    return type in [Output, Source]
 
 def IsCommand(type):
-    return type != Output and type != Source
+    return type not in [Output, Source]
 
 def HasAutoDependencies(type):
     return type == Cxx
@@ -146,16 +146,14 @@ class Entry(object):
 
     @property
     def folder_name(self):
-        if not self.folder:
-            return ''
-        return self.folder.path
+        return '' if not self.folder else self.folder.path
 
     def format(self):
-        if self.type == Source or self.type == Output or self.type == SharedOutput:
+        if self.type in [Source, Output, SharedOutput]:
             return self.path
         text = ''
         if self.type == Mkdir:
-            return 'mkdir -p ' + self.path
+            return f'mkdir -p {self.path}'
         if self.type == Symlink:
             return 'ln -s "{0}" "{1}"'.format(self.blob[0],
                                               os.path.join(self.folder_name, self.blob[1]))
@@ -163,27 +161,30 @@ class Entry(object):
             return 'cp "{0}" "{1}"'.format(self.blob[0], os.path.join(self.folder_name,
                                                                       self.blob[1]))
         if self.type == Cxx:
-            return '[' + self.blob['type'] + ']' + ' -> ' + (' '.join(
-                [arg for arg in self.blob['argv']]))
+            return (
+                '['
+                + self.blob['type']
+                + ']'
+                + ' -> '
+                + ' '.join(list(self.blob['argv']))
+            )
         if self.type == Rc:
-            return ' '.join([arg for arg in self.blob['cl_argv']]) + ' && ' + ' '.join(
-                [arg for arg in self.blob['rc_argv']])
-        return (' '.join([arg for arg in self.blob]))
+            return (
+                ' '.join(list(self.blob['cl_argv']))
+                + ' && '
+                + ' '.join(list(self.blob['rc_argv']))
+            )
+        return ' '.join(list(self.blob))
 
 def combine(a, b):
-    if type(a) is Entry:
-        text_a = a.path
-    else:
-        text_a = a
+    text_a = a.path if type(a) is Entry else a
     if type(b) is Entry:
         text_b = b.path
-    else:
-        if not len(b):
-            return text_a
+    elif len(b):
         text_b = b
-    if not text_a:
-        return text_b
-    return os.path.join(text_a, text_b)
+    else:
+        return text_a
+    return text_b if not text_a else os.path.join(text_a, text_b)
 
 # Helper class for reading env_data objects in the database. This cannot modify
 # the underlying environment data.

@@ -56,10 +56,7 @@ class Clang(CompatGCC):
 
 class Compiler:
 	def __init__(self):
-		self.env = { }
-		self.env['CINCLUDES'] = []
-		self.env['CXXINCLUDES'] = []
-		self.env['POSTLINKFLAGS'] = []
+		self.env = {'CINCLUDES': [], 'CXXINCLUDES': [], 'POSTLINKFLAGS': []}
 
 	def Clone(self):
 		c = Compiler()
@@ -83,15 +80,15 @@ class Compiler:
 			raise e
 
 	def ToConfig(self, runner, name):
-		runner.cache.CacheVariable(name + '_env', self.env)
-		runner.cache.CacheVariable(name + '_cc', self.cc)
-		runner.cache.CacheVariable(name + '_cxx', self.cxx)
+		runner.cache.CacheVariable(f'{name}_env', self.env)
+		runner.cache.CacheVariable(f'{name}_cc', self.cc)
+		runner.cache.CacheVariable(f'{name}_cxx', self.cxx)
 
 	def FromConfig(self, runner, name):
-		env = runner.cache[name + '_env']
+		env = runner.cache[f'{name}_env']
 		self.env.update(env)
-		self.cc = runner.cache[name + '_cc']
-		self.cxx = runner.cache[name + '_cxx']
+		self.cc = runner.cache[f'{name}_cc']
+		self.cxx = runner.cache[f'{name}_cxx']
 
 	def Setup(self):
 		for var in ['CFLAGS', 'CPPFLAGS', 'CXXFLAGS']:
@@ -100,26 +97,25 @@ class Compiler:
 			self.ImportVar(var)
 
 	def ImportListVar(self, key, sep = ' '):
-		if not key in os.environ:
+		if key not in os.environ:
 			return
 		self.env[key] = os.environ[key].split(sep)
 
 	def ImportVar(self, key):
-		if not key in os.environ:
+		if key not in os.environ:
 			return
 		self.env[key] = os.environ[key]
 
 	def AddToListVar(self, key, item):
 		if type(item) == list:
-			if not key in self.env:
-				self.env[key] = item
-			else:
+			if key in self.env:
 				self.env[key].extend(item)
-		else:
-			if not key in self.env:
-				self.env[key] = [item]
 			else:
-				self.env[key].append(item)
+				self.env[key] = item
+		elif key not in self.env:
+			self.env[key] = [item]
+		else:
+			self.env[key].append(item)
 
 	def DetectCCompiler(self):
 		if 'CC' in self.env:
@@ -130,7 +126,7 @@ class Compiler:
 			if osutil.IsMac():
 				list = ['clang', 'gcc', 'cc', 'icc']
 			elif osutil.IsWindows():
-				list[0:0] = ['cl']
+				list[:0] = ['cl']
 			for i in list:
 				if self.TryVerifyCompiler(i, 'c'):
 					return True
@@ -145,7 +141,7 @@ class Compiler:
 			if osutil.IsMac():
 				list = ['clang++', 'g++', 'c++', 'icc']
 			elif osutil.IsWindows():
-				list[0:0] = ['cl']
+				list[:0] = ['cl']
 			for i in list:
 				if self.TryVerifyCompiler(i, 'cxx'):
 					return True
@@ -165,8 +161,8 @@ class Compiler:
 		if mode == 'cxx' and 'CXXFLAGS' in self.env:
 			args.extend(self.env['CXXFLAGS'])
 		filename = 'test.{0}'.format(mode)
-		file = open(filename, 'w')
-		file.write("""
+		with open(filename, 'w') as file:
+			file.write("""
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -197,11 +193,10 @@ int main()
 	exit(0);
 }
 """)
-		file.close()
 		if mode == 'c':
-			executable = 'test' + osutil.ExecutableSuffix()
+			executable = f'test{osutil.ExecutableSuffix()}'
 		elif mode == 'cxx':
-			executable = 'testp' + osutil.ExecutableSuffix()
+			executable = f'testp{osutil.ExecutableSuffix()}'
 		try:
 			os.unlink(executable)
 		except:
@@ -212,7 +207,7 @@ int main()
 		print('Checking {0} compiler (vendor test {1})... '.format(mode, vendor), end = '')
 		print(args)
 		p = osutil.CreateProcess(args)
-		if p == None:
+		if p is None:
 			print('not found')
 			return False
 		if osutil.WaitForProcess(p) != 0:
@@ -220,7 +215,7 @@ int main()
 			return False
 		exe = osutil.MakePath('.', executable)
 		p = osutil.CreateProcess([executable], executable = exe)
-		if p == None:
+		if p is None:
 			print('failed to create executable')
 			return False
 		if osutil.WaitForProcess(p) != 0:
@@ -274,9 +269,9 @@ class CompileCommand(command.Command):
 			args.extend(compiler['CFLAGS'])
 		if compiler.HasProp('CDEFINES'):
 			if isinstance(info, MSVC):
-				args.extend(['/D' + define for define in compiler['CDEFINES']])
+				args.extend([f'/D{define}' for define in compiler['CDEFINES']])
 			else:
-				args.extend(['-D' + define for define in compiler['CDEFINES']])
+				args.extend([f'-D{define}' for define in compiler['CDEFINES']])
 		if compiler.HasProp('CINCLUDES'):
 			info.AddIncludes(args, workFolder, compiler['CINCLUDES'])
 
@@ -289,7 +284,7 @@ class CompileCommand(command.Command):
 		if isinstance(info, CompatGCC):
 			args.extend(['-H', '-c', fullFile, '-o', objFile + info.objSuffix])
 		elif isinstance(info, MSVC):
-			args.extend(['/showIncludes', '/c', fullFile, '/Fo' + objFile + info.objSuffix])
+			args.extend(['/showIncludes', '/c', fullFile, f'/Fo{objFile}{info.objSuffix}'])
 
 		self.argv = args
 		self.vendor = info
@@ -319,7 +314,7 @@ class CompileCommand(command.Command):
 		for i in lines:
 			if check == 0:
 				m = re.match('\.+\s+(.+)\s*$', i)
-				if m == None:
+				if m is None:
 					check = 1
 				else:
 					file = m.groups()[0]
@@ -337,7 +332,7 @@ class CompileCommand(command.Command):
 					check = 0
 					strip = False
 			elif check == 2:
-				if not i in deps:
+				if i not in deps:
 					strip = False 
 					check = 3
 			if not strip and i != '':
@@ -429,18 +424,14 @@ class BinaryBuilder:
 			if IsFileNewer(objFile, ourTime):
 				return True
 
-		for file in self.relinkQueue:
-			if IsFileNewer(file, ourTime):
-				return True
-
-		return False
+		return any(IsFileNewer(file, ourTime) for file in self.relinkQueue)
 
 	def _SendToJob(self, type):
 		self.job.AddCommandGroup(self.sourceFiles, False)
-		if type == 'shared':
-			binaryName = self.binary + osutil.SharedLibSuffix()
-		elif type == 'executable':
+		if type == 'executable':
 			binaryName = self.binary + osutil.ExecutableSuffix()
+		elif type == 'shared':
+			binaryName = self.binary + osutil.SharedLibSuffix()
 		elif type == 'static':
 			binaryName = osutil.StaticLibPrefix() + self.binary + osutil.StaticLibSuffix()
 		binaryPath = os.path.join(self.runner.outputFolder, self.job.workFolder, binaryName)
@@ -451,21 +442,14 @@ class BinaryBuilder:
 		if type == 'static':
 			if osutil.IsUnixy():
 				args = ['ar', 'rcs', binaryName]
-				args.extend([i for i in self.objFiles])
-				self.job.AddCommand(LinkCommand(args, self, binaryPath))
-				return
 			else:
-				args = ['lib.exe', '/OUT:' + binaryName]
-				args.extend([i for i in self.objFiles])
-				self.job.AddCommand(LinkCommand(args, self, binaryPath))
-				return
-
-		if self.hadCxxFiles:
-			cc = self.compiler.cxx
-		else:
-			cc = self.compiler.cc
+				args = ['lib.exe', f'/OUT:{binaryName}']
+			args.extend(list(self.objFiles))
+			self.job.AddCommand(LinkCommand(args, self, binaryPath))
+			return
+		cc = self.compiler.cxx if self.hadCxxFiles else self.compiler.cc
 		args = cc.command.split(' ')
-		args.extend([i for i in self.objFiles])
+		args.extend(list(self.objFiles))
 		if isinstance(cc, MSVC):
 			args.append('/link')
 		args.extend(self.compiler['POSTLINKFLAGS'])
@@ -478,23 +462,23 @@ class BinaryBuilder:
 					args.append('-shared')
 			args.extend(['-o', binaryName])
 		elif isinstance(cc, MSVC):
-			args.append('/OUT:' + binaryName)
+			args.append(f'/OUT:{binaryName}')
 			if type == 'shared':
 				args.append('/DLL')
-			args.append('/PDB:"' + self.binary + '.pdb' + '"')
+			args.append(f'/PDB:"{self.binary}.pdb"')
 		self.job.AddCommand(LinkCommand(args, self, binaryPath))
 
 	def AddResourceFile(self, file, env):
 		if self.runner.target['platform'] != 'windows':
 			return
-		objFile = ObjectFile(file) + '.res'
+		objFile = f'{ObjectFile(file)}.res'
 
 		self.objFiles.append(objFile)
 
 		objFilePath = os.path.join(self.runner.outputFolder, self.job.workFolder, objFile)
 		fullFile = os.path.join(self.runner.sourceFolder, file)
 		if FileExists(objFilePath) and IsFileNewer(objFilePath, fullFile) and \
-		   GetFileTime(objFilePath) > self.mostRecentDepends:
+			   GetFileTime(objFilePath) > self.mostRecentDepends:
 			 #:TODO: we need to deduce RC dependencies
 			 return
 
@@ -507,8 +491,8 @@ class BinaryBuilder:
 			if 'RCINCLUDES' in e:
 				for include in e['RCINCLUDES']:
 					args.extend(['/i', include])
-			
-		args.extend(['/fo' + objFile, fullFile])
+
+		args.extend([f'/fo{objFile}', fullFile])
 		self.sourceFiles.append(command.DirectCommand(args))
 
 	def AddSourceFile(self, file):
@@ -522,20 +506,18 @@ class BinaryBuilder:
 		self.objFiles.append(objFile + suffix)
 
 		objFilePath = os.path.join(self.runner.outputFolder, self.job.workFolder, objFile) + \
-		              suffix
+			              suffix
 		fullFile = os.path.join(self.runner.sourceFolder, file)
 		if FileExists(objFilePath) and IsFileNewer(objFilePath, fullFile) and \
-		   GetFileTime(objFilePath) > self.mostRecentDepends:
+			   GetFileTime(objFilePath) > self.mostRecentDepends:
 			#compute full dependencies, this isn't enough.
 			if self.job.HasVariable(objFile):
 				list = self.job.GetVariable(objFile)
-				checked = True
-				for i in list:
-					if not FileExists(i) or IsFileNewer(i, objFilePath):
-						checked = False
-						break
+				checked = not any(
+					not FileExists(i) or IsFileNewer(i, objFilePath) for i in list
+				)
 				#if all dependencies checked out, we're good to go.
-				if checked == True:
+				if checked:
 					return
 
 		workFolder = os.path.join(self.runner.outputFolder, self.job.workFolder)

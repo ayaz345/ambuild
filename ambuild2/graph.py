@@ -131,7 +131,7 @@ class Graph(object):
 
     def printGraph(self):
         for entry in self.create:
-            print(' : ' + entry.format())
+            print(f' : {entry.format()}')
 
         def printNode(node, indent):
             print((' ' * indent) + ' - ' + node.entry.format())

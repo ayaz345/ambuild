@@ -70,12 +70,8 @@ def IsCrossCompile(host, target):
     if host.platform != target.platform:
         return True
     if host.arch != target.arch:
-        if host.arch == 'x86_64' and target.arch in ['x86', 'x86_64']:
-            return False
-        return True
-    if host.subarch != target.subarch:
-        return True
-    return host.abi != target.abi
+        return host.arch != 'x86_64' or target.arch not in ['x86', 'x86_64']
+    return True if host.subarch != target.subarch else host.abi != target.abi
 
 class CompilerLocator(object):
     def __init__(self, host, gen_options, **kwargs):
@@ -111,14 +107,13 @@ class CompilerLocator(object):
             elif len(parts) == 3:
                 platform, arch, abi = parts
             else:
-                raise Exception('Target could not be parsed: {}'.format(target_phrase))
+                raise Exception(f'Target could not be parsed: {target_phrase}')
 
             arch, subarch = util.DecodeArchString(arch)
             self.target_override_ = True
-        else:
-            if 'target_arch' in kwargs:
-                arch, subarch = util.DecodeArchString(kwargs.pop('target_arch'))
-                self.target_override_ = True
+        elif 'target_arch' in kwargs:
+            arch, subarch = util.DecodeArchString(kwargs.pop('target_arch'))
+            self.target_override_ = True
 
         self.rules_config_['arch'] = arch
         self.rules_config_['subarch'] = subarch
@@ -129,7 +124,7 @@ class CompilerLocator(object):
         # Allow specifying the environment file via the environment.
         self.vcvars_override_ = {}
         for arch in ['x86', 'x86_64', 'arm', 'arm64', 'all']:
-            key = 'AMBUILD_VCVARS_{}'.format(arch.upper())
+            key = f'AMBUILD_VCVARS_{arch.upper()}'
             if key not in os.environ:
                 continue
             self.vcvars_override_[arch] = os.environ[key]
@@ -148,8 +143,7 @@ class CompilerLocator(object):
             return self.detect_from_env()
 
         if self.host_.platform == 'windows':
-            compiler = self.detect_msvc()
-            if compiler:
+            if compiler := self.detect_msvc():
                 return compiler
 
         return self.find_default_compiler()
@@ -176,9 +170,9 @@ class CompilerLocator(object):
 
         tools = None
         if cli.env_data:
-            kv = {k: v for k, v in cli.env_data}
+            kv = dict(cli.env_data)
             if 'tools' in kv:
-                tools = {'{}.exe'.format(k): v for k, v in kv['tools']}
+                tools = {f'{k}.exe': v for k, v in kv['tools']}
         if tools is None:
             tools, ok = FindToolsInEnv(os.environ, ['lib.exe', 'link.exe'])
             if not ok:
@@ -195,11 +189,7 @@ class CompilerLocator(object):
         cli.linker = GccLinker()
         cli.linker_argv = self.detect_gcc_tool('ld', 'LD', ['ld', 'gold', 'lld'], ['-v'])
 
-        if util.Platform() == 'linux':
-            ar_argv = ['V']
-        else:
-            ar_argv = ['-V']
-
+        ar_argv = ['V'] if util.Platform() == 'linux' else ['-V']
         cli.archiver = GccArchiver()
         cli.archiver_argv = self.detect_gcc_tool('ar', 'AR', ['ar'], ar_argv)
 
@@ -208,13 +198,10 @@ class CompilerLocator(object):
         if env_name in os.environ:
             candidates += [os.environ[env_name]]
         elif self.cross_compile_ and self.host_.platform == 'linux':
-            if self.target_.abi:
-                abi = self.target_.abi
-            else:
-                abi = 'gnu'
+            abi = self.target_.abi if self.target_.abi else 'gnu'
             arch = kGnuArchMap.get(self.target_.arch, self.target_.arch)
-            for command in commands:
-                candidates += ['{}-linux-{}-{}'.format(arch, abi, tool_name)]
+            for _ in commands:
+                candidates += [f'{arch}-linux-{abi}-{tool_name}']
             candidates += commands
         else:
             candidates += commands
@@ -232,10 +219,14 @@ class CompilerLocator(object):
                 rc = p.returncode
             except:
                 rc = -1
-            util.con_err(util.ConsoleRed, '{} failed with return code {}'.format(tool_name, rc),
-                         util.ConsoleNormal)
+            util.con_err(
+                util.ConsoleRed,
+                f'{tool_name} failed with return code {rc}',
+                util.ConsoleNormal,
+            )
         raise CompilerNotFoundException(
-            'Unable to find a suitable candidate for {}'.format(tool_name))
+            f'Unable to find a suitable candidate for {tool_name}'
+        )
 
     def create_cli(self, cc, cxx, env_data = None):
         # Ensure that the two compilers have the same vendor.
@@ -279,17 +270,19 @@ class CompilerLocator(object):
             return self.find_default_compiler()
 
         if self.target_.arch in self.vcvars_override_:
-            cxx = self.try_msvc_bat(self.vcvars_override_[self.target_.arch])
-            if not cxx:
-                raise CompilerNotFoundException()
-            return cxx
+            if cxx := self.try_msvc_bat(self.vcvars_override_[self.target_.arch]):
+                return cxx
 
+            else:
+                raise CompilerNotFoundException()
         if 'all' in self.vcvars_override_:
-            cxx = self.try_msvc_bat(self.vcvars_override_['all'], pass_arch = True)
-            if not cxx:
-                raise CompilerNotFoundException()
-            return cxx
+            if cxx := self.try_msvc_bat(
+                self.vcvars_override_['all'], pass_arch=True
+            ):
+                return cxx
 
+            else:
+                raise CompilerNotFoundException()
         installs = msvc_utils.MSVCFinder().find_all()
         ignore_prerelease = not self.gen_options_.vs_prerelease
         for install in installs:
@@ -317,15 +310,18 @@ class CompilerLocator(object):
             env_cmds = msvc_utils.DeduceEnv(bat_file, argv)
             env = util.BuildEnv(env_cmds)
         except:
-            util.con_err(util.ConsoleRed, "Could not run or analyze {}".format(bat_file),
-                         util.ConsoleNormal)
+            util.con_err(
+                util.ConsoleRed,
+                f"Could not run or analyze {bat_file}",
+                util.ConsoleNormal,
+            )
             return None
 
         necessary_tools = ['cl.exe', 'rc.exe', 'lib.exe', 'link.exe']
         tools, _ = FindToolsInEnv(env, necessary_tools)
         for tool in necessary_tools:
             if tool not in tools:
-                util.con_err(util.ConsoleRed, "Could not find {} for {}".format(tool, bat_file))
+                util.con_err(util.ConsoleRed, f"Could not find {tool} for {bat_file}")
                 return None
 
         cc, _ = self.run_compiler('CC', 'cl', 'msvc', env, abs_path = tools['cl.exe'])
@@ -354,13 +350,10 @@ class CompilerLocator(object):
             candidates.append(kMsvcTuple)
 
         if self.cross_compile_ and self.host_.platform == 'linux':
-            if self.target_.abi:
-                abi = self.target_.abi
-            else:
-                abi = 'gnu'
+            abi = self.target_.abi if self.target_.abi else 'gnu'
             arch = kGnuArchMap.get(self.target_.arch, self.target_.arch)
-            cmd_prefix = '{}-linux-{}'.format(arch, abi)
-            candidates += [(cmd_prefix + '-gcc', cmd_prefix + '-g++', 'gcc')]
+            cmd_prefix = f'{arch}-linux-{abi}'
+            candidates += [(f'{cmd_prefix}-gcc', f'{cmd_prefix}-g++', 'gcc')]
 
         candidates.extend([kClangTuple, kGccTuple, kIntelTuple])
 

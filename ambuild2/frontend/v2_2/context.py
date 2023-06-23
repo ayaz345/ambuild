@@ -51,11 +51,7 @@ class BaseContext(object):
         self.parent_ = parent
         self.script_ = script
 
-        if parent:
-            self.vars_ = copy.copy(parent.vars_)
-        else:
-            self.vars_ = {}
-
+        self.vars_ = copy.copy(parent.vars_) if parent else {}
         self.proxy_ = AttributeProxy(self)
 
         # Merge.
@@ -63,10 +59,8 @@ class BaseContext(object):
             self.vars_[key] = vars[key]
         self.vars_['builder'] = self.proxy_
 
-        parent_attrs = []
         parent_proxy = getattr(parent, 'proxy_', None)
-        if parent_proxy:
-            parent_attrs = getattr(parent_proxy, '_own_attrs', [])
+        parent_attrs = getattr(parent_proxy, '_own_attrs', []) if parent_proxy else []
         for attr in parent_attrs:
             if attr.startswith('_'):
                 continue
@@ -220,7 +214,7 @@ class BuildContext(BaseContext):
         if self.localFolder_ is not None:
             raise Exception("Cannot set top-level build folder twice!")
 
-        if folder == '/' or folder == '.' or folder == './':
+        if folder in ['/', '.', './']:
             self.buildFolder = ''
         else:
             self.buildFolder = os.path.normpath(folder)

@@ -80,7 +80,7 @@ class Project(object):
         for builder in self.builders_:
             tag_folder = generator.addFolder(cx, builder.localFolder)
             objFile = paths.Join(tag_folder, builder.outputFile)
-            pdbFile = paths.Join(tag_folder, builder.name_ + '.pdb')
+            pdbFile = paths.Join(tag_folder, f'{builder.name_}.pdb')
             objNode = generator.addOutput(cx, objFile, node)
             pdbNode = generator.addOutput(cx, pdbFile, node)
             outputs.append(CppNodes(objNode, pdbNode))
@@ -109,10 +109,7 @@ class Compiler(compilers.Compiler):
         # Assume the compiler version is related to the IDE version.
         if self.version >= 1600:
             return '.vcxproj'
-        if self.version >= 1300:
-            return '.vcproj'
-        # lol whatevs
-        return '.dsp'
+        return '.vcproj' if self.version >= 1300 else '.dsp'
 
     @property
     def version(self):

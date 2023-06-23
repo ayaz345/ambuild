@@ -14,10 +14,7 @@ class Task(object):
         self.id = id
         self.type = entry.type
         self.data = entry.blob
-        if entry.folder:
-            self.folder = entry.folder.path
-        else:
-            self.folder = None
+        self.folder = entry.folder.path if entry.folder else None
         self.outputs = outputs
         self.outgoing = []
         self.incoming = set()
@@ -29,22 +26,25 @@ class Task(object):
 
     @property
     def folder_name(self):
-        if not self.folder:
-            return ''
-        return self.folder
+        return '' if not self.folder else self.folder
 
     def format(self):
         text = ''
         if self.type == nodetypes.Cxx:
-            return '[' + self.data['type'] + ']' + ' -> ' + (' '.join(
-                [arg for arg in self.data['argv']]))
+            return (
+                '['
+                + self.data['type']
+                + ']'
+                + ' -> '
+                + ' '.join(list(self.data['argv']))
+            )
         if self.type == nodetypes.Symlink:
             return 'ln -s "{0}" "{1}"'.format(self.data[0],
                                               os.path.join(self.folder_name, self.data[1]))
         if self.type == nodetypes.Copy:
             return 'cp "{0}" "{1}"'.format(self.data[0], os.path.join(self.folder_name,
                                                                       self.data[1]))
-        return (' '.join([arg for arg in self.data]))
+        return ' '.join(list(self.data))
 
 def GetMsvcInclusionPattern(vars, tools_env):
     if 'cc_inclusion_pattern' in vars:
@@ -169,13 +169,12 @@ class TaskWorker(process_manager.MessageReceiver):
                 stdout = ''
                 stderr = '{0}'.format(exn)
 
-        reply = {
+        return {
             'ok': status,
             'cmdline': self.task_argv_debug(message),
             'stdout': stdout,
             'stderr': stderr,
         }
-        return reply
 
     def doSymlink(self, message):
         task_folder = message['task_folder']
@@ -184,13 +183,12 @@ class TaskWorker(process_manager.MessageReceiver):
         with util.FolderChanger(task_folder):
             rcode, stdout, stderr = util.symlink(source_path, output_path)
 
-        reply = {
+        return {
             'ok': rcode == 0,
             'cmdline': self.task_argv_debug(message),
             'stdout': stdout,
             'stderr': stderr,
         }
-        return reply
 
     def doCopy(self, message):
         task_folder = message['task_folder']
@@ -205,13 +203,12 @@ class TaskWorker(process_manager.MessageReceiver):
                 ok = False
                 stderr = 'File not found: {0}'.format(source_path)
 
-        reply = {
+        return {
             'ok': ok,
             'cmdline': self.task_argv_debug(message),
             'stdout': '',
             'stderr': stderr,
         }
-        return reply
 
     def doBinaryWrite(self, message):
         task_folder = message['task_folder']
@@ -278,14 +275,13 @@ class TaskWorker(process_manager.MessageReceiver):
             p, out, err = util.Execute(argv, env = env)
             out, err, paths = self.parseDependencies(p, tools_env, out, err, dep_type, dep_info)
 
-        reply = {
+        return {
             'ok': p.returncode == 0,
             'cmdline': self.task_argv_debug(message),
             'stdout': out,
             'stderr': err,
             'deps': paths,
         }
-        return reply
 
     def parseDependencies(self, p, tools_env, out, err, dep_type, dep_info):
         if dep_type == 'md':
@@ -336,34 +332,33 @@ class TaskWorker(process_manager.MessageReceiver):
             if p.returncode == 0:
                 p, out, err = util.Execute(rc_argv, env = env)
 
-        reply = {
+        return {
             'ok': p.returncode == 0,
             'cmdline': self.task_argv_debug(message),
             'stdout': out,
             'stderr': err,
             'deps': paths,
         }
-        return reply
 
     def task_argv_debug(self, message):
         task_data = message.get('task_data', None)
         if message['task_type'] == 'rc':
             cl_argv = task_data['cl_argv']
             rc_argv = task_data['rc_argv']
-            return ' '.join([arg for arg in cl_argv]) + ' && ' + ' '.join([arg for arg in rc_argv])
+            return ' '.join(list(cl_argv)) + ' && ' + ' '.join(list(rc_argv))
         elif message['task_type'] == 'cxx':
-            return ' '.join([arg for arg in task_data['argv']])
+            return ' '.join(list(task_data['argv']))
         elif message['task_type'] == 'cmd':
-            return ' '.join([arg for arg in task_data])
+            return ' '.join(list(task_data))
         elif message['task_type'] in ['cp', 'ln']:
             task_folder = message['task_folder']
             if message['task_type'] == 'cp':
                 cmd = 'cp'
             elif message['task_type'] == 'ln':
                 cmd = 'ln -s'
-            return '{} "{}" "{}"'.format(cmd, task_data[0], os.path.join(task_folder, task_data[1]))
+            return f'{cmd} "{task_data[0]}" "{os.path.join(task_folder, task_data[1])}"'
         elif message['task_type'] == 'bin':
-            return 'write {}'.format(message['task_data']['path'])
+            return f"write {message['task_data']['path']}"
 
 class TaskMaster(object):
     BUILD_IN_PROGRESS = 0
@@ -396,25 +391,17 @@ class TaskMaster(object):
             # since we incur the additional overhead of message passing. Instead,
             # we use two processes as the minimal number. If that turns out to be
             # bad we can create an in-process TaskMaster later.
-            if mp.cpu_count() == 1:
-                num_processes = 2
-            else:
-                num_processes = int(mp.cpu_count() * 1.25)
+            num_processes = 2 if mp.cpu_count() == 1 else int(mp.cpu_count() * 1.25)
         else:
             num_processes = cx.options.jobs
 
         # Don't create more processes than we'll need.
-        if num_processes > max_parallel:
-            num_processes = max_parallel
-
+        num_processes = min(num_processes, max_parallel)
         for _ in range(num_processes):
             self.startWorker()
 
     def spewResult(self, worker, task, message):
-        if message['ok']:
-            color = util.ConsoleGreen
-        else:
-            color = util.ConsoleRed
+        color = util.ConsoleGreen if message['ok'] else util.ConsoleRed
         util.con_out(util.ConsoleBlue, '[{0}]'.format(message['pid']), util.ConsoleNormal, ' ',
                      color, message['cmdline'], util.ConsoleNormal)
         sys.stdout.flush()
@@ -447,8 +434,9 @@ class TaskMaster(object):
 
         del self.pending_[worker.pid]
         if message['task_id'] != task.id:
-            raise Exception('Worker {} returned wrong task id (got {}, expected {})'.format(
-                worker.pid, task_id, task.id))
+            raise Exception(
+                f'Worker {worker.pid} returned wrong task id (got {task_id}, expected {task.id})'
+            )
 
         updates = message['updates']
         if not self.builder.updateGraph(task.id, updates, message):
@@ -530,7 +518,7 @@ class TaskMaster(object):
                 try:
                     proc, obj = poller.poll()
                     if obj['id'] not in self.messageMap:
-                        raise Exception('Unhandled message type: {}'.format(obj['id']))
+                        raise Exception(f"Unhandled message type: {obj['id']}")
                     self.messageMap[obj['id']](proc, obj)
                 except EOFError:
                     # The process died. Very sad. Clean up and fail the build.

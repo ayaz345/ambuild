@@ -133,6 +133,6 @@ run.Build()
 			'Cpp':     cpp
 		}
 		if xtras != None:
-			globals.update(xtras)
+			globals |= xtras
 		_execfile(path, globals)
 

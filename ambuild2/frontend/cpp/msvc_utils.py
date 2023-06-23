@@ -90,7 +90,7 @@ class MSVCFinder(object):
         data = json.loads(output.decode('utf-8'))
         for obj in data:
             version_parts = obj['installationVersion'].split('.')
-            version = version_parts[0] + '.0'
+            version = f'{version_parts[0]}.0'
             prerelease = obj['isPrerelease']
             install_path = obj['installationPath']
             install = MSVCInstall(version, os.path.join(install_path, 'VC'), prerelease)
@@ -100,21 +100,32 @@ class MSVCFinder(object):
 
             # Prefer native tools but fallback to other executable architectures if not available.
             if util.IsArchExecutable('arm64'):
-                candidates.append(('x86', 'vcvarsarm64_x86.bat'))
-                candidates.append(('x86_64', 'vcvarsarm64_amd64.bat'))
-                candidates.append(('arm', 'vcvarsarm64_arm.bat'))
-                candidates.append(('arm64', 'vcvarsarm64.bat'))
+                candidates.extend(
+                    (
+                        ('x86', 'vcvarsarm64_x86.bat'),
+                        ('x86_64', 'vcvarsarm64_amd64.bat'),
+                        ('arm', 'vcvarsarm64_arm.bat'),
+                        ('arm64', 'vcvarsarm64.bat'),
+                    )
+                )
             if util.IsArchExecutable('x86_64'):
-                candidates.append(('x86', 'vcvarsamd64_x86.bat'))
-                candidates.append(('x86_64', 'vcvars64.bat'))
-                candidates.append(('arm', 'vcvarsamd64_arm.bat'))
-                candidates.append(('arm64', 'vcvarsamd64_arm64.bat'))
+                candidates.extend(
+                    (
+                        ('x86', 'vcvarsamd64_x86.bat'),
+                        ('x86_64', 'vcvars64.bat'),
+                        ('arm', 'vcvarsamd64_arm.bat'),
+                        ('arm64', 'vcvarsamd64_arm64.bat'),
+                    )
+                )
             if util.IsArchExecutable('x86'):
-                candidates.append(('x86', 'vcvars32.bat'))
-                candidates.append(('x86_64', 'vcvarsx86_amd64.bat'))
-                candidates.append(('arm', 'vcvarsx86_arm.bat'))
-                candidates.append(('arm64', 'vcvarsx86_arm64.bat'))
-
+                candidates.extend(
+                    (
+                        ('x86', 'vcvars32.bat'),
+                        ('x86_64', 'vcvarsx86_amd64.bat'),
+                        ('arm', 'vcvarsx86_arm.bat'),
+                        ('arm64', 'vcvarsx86_arm64.bat'),
+                    )
+                )
             for target, bat_file in candidates:
                 path = os.path.join(build_path, bat_file)
                 if target not in install.vcvars and os.path.exists(path):
@@ -139,14 +150,21 @@ class MSVCFinder(object):
 
         # Prefer native tools but fallback to other executable architectures if not available.
         if util.IsArchExecutable('x86_64'):
-            candidates.append(('x86', os.path.join('amd64_x86', 'vcvarsamd64_x86.bat')))
-            candidates.append(('x86_64', os.path.join('amd64', 'vcvars64.bat')))
-            candidates.append(('arm', os.path.join('amd64_arm', 'vcvarsamd64_arm.bat')))
+            candidates.extend(
+                (
+                    ('x86', os.path.join('amd64_x86', 'vcvarsamd64_x86.bat')),
+                    ('x86_64', os.path.join('amd64', 'vcvars64.bat')),
+                    ('arm', os.path.join('amd64_arm', 'vcvarsamd64_arm.bat')),
+                )
+            )
         if util.IsArchExecutable('x86'):
-            candidates.append(('x86', 'vcvars32.bat'))
-            candidates.append(('x86_64', os.path.join('x86_amd64', 'vcvarsx86_amd64.bat')))
-            candidates.append(('arm', os.path.join('arm', 'vcvarsx86_arm.bat')))
-
+            candidates.extend(
+                (
+                    ('x86', 'vcvars32.bat'),
+                    ('x86_64', os.path.join('x86_amd64', 'vcvarsx86_amd64.bat')),
+                    ('arm', os.path.join('arm', 'vcvarsx86_arm.bat')),
+                )
+            )
         for target, bat_file in candidates:
             path = os.path.join(path_value, 'bin', bat_file)
             if target not in install.vcvars and os.path.exists(path):
@@ -175,7 +193,7 @@ def parse_env(text):
         if first_eq == -1:
             env[line.upper()] = ''
         else:
-            key = line[0:first_eq]
+            key = line[:first_eq]
             value = line[first_eq + 1:]
             env[key.upper()] = value
     return env
@@ -211,20 +229,18 @@ def run_batch(contents):
 def DeduceEnv(vcvars_file, argv):
     contents = "SET\n"
     env_before = parse_env(run_batch(contents))
-    args = ' '.join(['"{}"'.format(arg) for arg in argv])
-    contents = "@echo off\n" + \
-               "CALL \"{}\" {} 1>NUL\n".format(vcvars_file, args) + \
-               "@echo on\n" + \
-               "SET\n"
+    args = ' '.join([f'"{arg}"' for arg in argv])
+    contents = (
+        "@echo off\n"
+        + f'CALL \"{vcvars_file}\" {args} 1>NUL\n'
+        + "@echo on\n"
+        + "SET\n"
+    )
     env_after = parse_env(run_batch(contents))
 
     replace, add = find_env_changes(env_before, env_after)
-    env_commands = []
-    for key, value in replace.items():
-        env_commands.append(('replace', key, value))
-    for key, value in add.items():
-        env_commands.append(('add', key, value))
-
+    env_commands = [('replace', key, value) for key, value in replace.items()]
+    env_commands.extend(('add', key, value) for key, value in add.items())
     # Explicitly use tuples because this object gets attached to many commands
     # and is better left immutable. This also lets us hash it for reverse
     # lookup.
@@ -239,7 +255,7 @@ def MakeArchParam(host, target):
         return kArchMap.get(target.arch, target.arch)
     host_arch = kArchMap.get(host.arch, host.arch)
     target_arch = kArchMap.get(target.arch, target.arch)
-    return '{}_{}'.format(host_arch, target_arch)
+    return f'{host_arch}_{target_arch}'
 
 def DetectInclusionPattern(text):
     for line in [raw.strip() for raw in text.split('\n')]:
@@ -247,7 +263,7 @@ def DetectInclusionPattern(text):
         if m is None:
             continue
 
-        phrase = m.group(1)
+        phrase = m[1]
         return re.escape(phrase) + r'\s+([A-Za-z]:\\.*)$'
 
     raise Exception('Could not find compiler inclusion pattern')

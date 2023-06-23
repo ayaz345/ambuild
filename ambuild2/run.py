@@ -152,8 +152,7 @@ def PreparerForAPI(api):
     elif api == '2.2' or api.startswith('2.2.'):
         from ambuild2.frontend.v2_2.prep import Preparer
     else:
-        message = "AMBuild {} not found; {} is installed. Do you need to upgrade?\n".format(
-            api, CURRENT_API)
+        message = f"AMBuild {api} not found; {CURRENT_API} is installed. Do you need to upgrade?\n"
         raise ApiVersionNotFoundException(message)
 
     return Preparer
@@ -167,7 +166,7 @@ def HasAPI(api):
     return False
 
 def BuildParser(sourcePath, api, buildPath = None):
-    if buildPath == None:
+    if buildPath is None:
         buildPath = os.path.abspath(os.getcwd())
 
     Preparer = PreparerForAPI(api)

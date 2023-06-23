@@ -142,21 +142,19 @@ class Generator(BaseGenerator):
                 util.ConsoleNormal)
 
     def saveVars(self):
+        env = {
+            key: os.environ[key]
+            for key in ['CC', 'CXX', 'CFLAGS', 'CXXFLAGS']
+            if key in os.environ
+        }
         vars = {
             'sourcePath': self.cm.sourcePath,
             'buildPath': self.cm.buildPath,
             'originalCwd': self.cm.originalCwd,
             'options': self.cm.options,
-            'args': self.cm.args
+            'args': self.cm.args,
+            'env': env,
         }
-
-        # Save env vars that will be needed to reconfigure.
-        env = {}
-        for key in ['CC', 'CXX', 'CFLAGS', 'CXXFLAGS']:
-            if key in os.environ:
-                env[key] = os.environ[key]
-        vars['env'] = env
-
         self.copyBuildVars(vars)
 
         with open(os.path.join(self.cacheFolder, 'vars'), 'wb') as fp:
@@ -215,10 +213,10 @@ class Generator(BaseGenerator):
                                  util.ConsoleNormal)
                     raise Exception('Refactoring error: new folder')
                 entry = self.db.add_folder(parent, path)
-            elif entry.type == nodetypes.Output or entry.type == nodetypes.SharedOutput:
+            elif entry.type in [nodetypes.Output, nodetypes.SharedOutput]:
                 if entry.type == nodetypes.Output:
                     cmd_entries = [self.db.query_command_of(entry)]
-                elif entry.type == nodetypes.SharedOutput:
+                else:
                     cmd_entries = self.db.query_shared_commands_of(entry)
 
                 for cmd_entry in cmd_entries:
@@ -268,7 +266,7 @@ class Generator(BaseGenerator):
             return folder_entry
 
         # If it's a folder or an output, we can give a better error message.
-        if folder_entry.type == nodetypes.Output or folder_entry.type == nodetypes.Mkdir:
+        if folder_entry.type in [nodetypes.Output, nodetypes.Mkdir]:
             util.con_err(util.ConsoleRed, 'Folder "', util.ConsoleBlue, folder_entry.path,
                          util.ConsoleRed, '" was never created.', util.ConsoleNormal)
             raise Exception('path {0} was never created', folder_entry.path)
@@ -370,14 +368,14 @@ class Generator(BaseGenerator):
             if only_if_exists and not os.path.exists(source):
                 return
 
-            entry = self.db.query_path(source)
-            if not entry:
+            if entry := self.db.query_path(source):
+                # Otherwise, we have to valid the node.
+                source = entry
+
+            else:
                 return self.db.add_source(source)
 
-            # Otherwise, we have to valid the node.
-            source = entry
-
-        if source.type == nodetypes.Source or source.type == nodetypes.Output:
+        if source.type in [nodetypes.Source, nodetypes.Output]:
             return source
 
         if source.type == nodetypes.Mkdir:
@@ -592,9 +590,9 @@ class Generator(BaseGenerator):
         # slash or '.'/'' indicating the context folder.
         detected_folder = None
         if util.IsString(output_path):
-            if output_path[-1] == os.sep or output_path[-1] == os.altsep:
+            if output_path[-1] in [os.sep, os.altsep]:
                 detected_folder = os.path.join(context.buildFolder, os.path.normpath(output_path))
-            elif output_path == '.' or output_path == '':
+            elif output_path in ['.', '']:
                 detected_folder = context.buildFolder
 
             # Since we're building something relative to the context folder, ensure
@@ -621,14 +619,14 @@ class Generator(BaseGenerator):
 
         # For copy operations, it's okay to use the path from the current folder.
         # However, when performing symlinks, we always want an absolute path.
-        if cmd == nodetypes.Symlink:
-            if source_entry.type == nodetypes.Source:
-                source_path = source_entry.path
-            else:
-                source_path = os.path.join(context.buildPath, source_entry.path)
-        else:
+        if (
+            cmd == nodetypes.Symlink
+            and source_entry.type == nodetypes.Source
+            or cmd != nodetypes.Symlink
+        ):
             source_path = source_entry.path
-
+        else:
+            source_path = os.path.join(context.buildPath, source_entry.path)
         # For clarity of spew, we always execute file operations in the root of
         # the build folder. This means that no matter what context we're in,
         # we can use absolute-ish folders and get away with it.
@@ -706,7 +704,7 @@ class Generator(BaseGenerator):
     def addOutputFile(self, context, path, contents):
         folder, filename = os.path.split(path)
         if not filename:
-            raise Exception('Must specify a file, {} is a folder'.format(path))
+            raise Exception(f'Must specify a file, {path} is a folder')
 
         folder_node = self.generateFolder(context.localFolder, folder)
         data = {

@@ -48,7 +48,7 @@ def ComputeDirty(node):
     elif node.type == nodetypes.Output:
         dirty = ComputeOutputDirty(node)
     else:
-        raise Exception('cannot compute dirty bit for node type: ' + node.type)
+        raise Exception(f'cannot compute dirty bit for node type: {node.type}')
     return dirty
 
 def ComputeDamageGraph(database, only_changed = False):

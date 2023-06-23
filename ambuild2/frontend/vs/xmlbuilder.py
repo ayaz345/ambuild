@@ -55,12 +55,10 @@ class XmlBuilder(object):
         self.write('</{0}>'.format(tag))
 
     def build_element(self, tag, **kwargs):
-        if len(kwargs) == 0:
+        if not kwargs:
             return '{0}'.format(tag)
 
-        props = []
-        for key in kwargs:
-            props.append('{0}="{1}"'.format(key, kwargs[key]))
+        props = ['{0}="{1}"'.format(key, value) for key, value in kwargs.items()]
         attrs = ' '.join(props)
         return '{0} {1}'.format(tag, attrs)
 

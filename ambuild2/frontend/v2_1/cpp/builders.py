@@ -90,10 +90,7 @@ class Project(object):
             self.builders_.append(builder)
 
     def generate(self, generator, cx):
-        outputs = []
-        for builder in self.builders_:
-            outputs += [builder.generate(generator, cx)]
-        return outputs
+        return [builder.generate(generator, cx) for builder in self.builders_]
 
     def Configure(self, name, tag):
         compiler = self.compiler.clone()
@@ -212,23 +209,23 @@ class ObjectArgvBuilder(object):
         return ObjectFile(self, inputObj, objectFile, argv)
 
     def buildRcItem(self, inputObj, sourceFile, encodedName):
-        objectFile = encodedName + '.res'
+        objectFile = f'{encodedName}.res'
 
         defines = self.compiler.defines + self.compiler.cxxdefines + self.compiler.rcdefines
         cl_argv = self.cc_argv[:]
         cl_argv += [self.vendor.definePrefix + define for define in defines]
         for include in (self.compiler.includes + self.compiler.cxxincludes):
             cl_argv += self.vendor.formatInclude(objectFile, include)
-        cl_argv += self.vendor.preprocessArgv(sourceFile, encodedName + '.i')
+        cl_argv += self.vendor.preprocessArgv(sourceFile, f'{encodedName}.i')
 
         rc_argv = ['rc', '/nologo']
         for define in defines:
             rc_argv += ['/d', define]
         for include in (self.compiler.includes + self.compiler.cxxincludes):
             rc_argv += ['/i', self.vendor.IncludePath(objectFile, include)]
-        rc_argv += ['/fo' + objectFile, sourceFile]
+        rc_argv += [f'/fo{objectFile}', sourceFile]
 
-        return RCFile(self, inputObj, encodedName + '.i', objectFile, cl_argv, rc_argv)
+        return RCFile(self, inputObj, f'{encodedName}.i', objectFile, cl_argv, rc_argv)
 
 def ComputeSourcePath(context, localFolderNode, item):
     # This is a path into the source tree.
@@ -372,11 +369,7 @@ class BinaryBuilder(object):
         # If custom tools run, they may place new headers in the objdir. For now
         # we put them implicitly in the include path. We might need to make this
         # explicit (or the path customizable) later.
-        if must_include_builddir:
-            addl_include_dirs = [outputPath]
-        else:
-            addl_include_dirs = []
-
+        addl_include_dirs = [outputPath] if must_include_builddir else []
         builder = ObjectArgvBuilder()
         builder.setOutputs(localFolderNode, outputFolder, outputPath)
         builder.setCompiler(module.compiler, addl_include_dirs, addl_source_deps)
@@ -490,14 +483,14 @@ class BinaryBuilder(object):
             if isinstance(self, Library) and self.has_code_:
                 # In theory, .dlls should have exports, so MSVC will generate these
                 # files. If this turns out not to be true, we may have to get fancier.
-                self.linker_outputs += [self.name_ + '.lib']
-                self.linker_outputs += [self.name_ + '.exp']
+                self.linker_outputs += [f'{self.name_}.lib']
+                self.linker_outputs += [f'{self.name_}.exp']
 
         if self.linker_.like('emscripten'):
             if isinstance(self, Program):
                 # This might not be correct if the user is actually still using asm.js,
                 # we would need to look for `-s WASM=0` in the linker args to check.
-                self.linker_outputs += [self.name_ + '.wasm']
+                self.linker_outputs += [f'{self.name_}.wasm']
 
         if self.compiler.symbol_files == 'separate':
             self.perform_symbol_steps(cx)
@@ -505,9 +498,9 @@ class BinaryBuilder(object):
     def perform_symbol_steps(self, cx):
         if self.linker_.family == 'msvc':
             # Note, pdb is last since we read the pdb as outputs[-1].
-            self.linker_outputs += [self.name_ + '.pdb']
+            self.linker_outputs += [f'{self.name_}.pdb']
         elif cx.target.platform == 'mac':
-            bundle_folder = os.path.join(self.localFolder, self.outputFile + '.dSYM')
+            bundle_folder = os.path.join(self.localFolder, f'{self.outputFile}.dSYM')
             bundle_entry = cx.AddFolder(bundle_folder)
             bundle_layout = [
                 'Contents',
@@ -517,13 +510,13 @@ class BinaryBuilder(object):
             for folder in bundle_layout:
                 cx.AddFolder(os.path.join(bundle_folder, folder))
             self.linker_outputs += [
-                self.outputFile + '.dSYM/Contents/Info.plist',
-                self.outputFile + '.dSYM/Contents/Resources/DWARF/' + self.outputFile
+                f'{self.outputFile}.dSYM/Contents/Info.plist',
+                f'{self.outputFile}.dSYM/Contents/Resources/DWARF/{self.outputFile}',
             ]
             self.debug_entry = bundle_entry
             self.argv = ['ambuild_dsymutil_wrapper.sh', self.outputFile] + self.argv
         elif cx.target.platform == 'linux':
-            self.linker_outputs += [self.outputFile + '.dbg']
+            self.linker_outputs += [f'{self.outputFile}.dbg']
             self.argv = ['ambuild_objcopy_wrapper.sh', self.outputFile] + self.argv
 
     def link(self, context, folder, inputs):
@@ -532,7 +525,7 @@ class BinaryBuilder(object):
         shared_outputs = []
         if self.linker_.behavior == 'msvc':
             if not isinstance(self, StaticLibrary) and '/INCREMENTAL:NO' not in self.argv:
-                shared_outputs += [self.name_ + '.ilk']
+                shared_outputs += [f'{self.name_}.ilk']
 
         ignore, outputs = context.AddCommand(inputs = inputs,
                                              argv = self.argv,

@@ -145,4 +145,4 @@ class Preparer(object):
                     sys.exit(1)
             except Exception as e:
                 traceback.print_exc()
-                util.con_err(util.ConsoleRed, 'Configure failed: {}'.format(e), util.ConsoleNormal)
+                util.con_err(util.ConsoleRed, f'Configure failed: {e}', util.ConsoleNormal)

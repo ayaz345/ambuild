@@ -51,8 +51,6 @@ class Context(object):
                         'The build configured here looks corrupt; you will have to delete your objdir.\n'
                     )
                 raise
-                sys.exit(1)
-
         self.restore_environment()
 
         self.db = database.Database(self.dbpath)
@@ -79,13 +77,11 @@ class Context(object):
     def reconfigure(self):
         # See if we need to reconfigure.
         files = []
-        reconfigure_needed = False
         self.db.query_scripts(lambda row, path, stamp: files.append((path, stamp)))
-        for path, stamp in files:
-            if not os.path.exists(path) or os.path.getmtime(path) > stamp:
-                reconfigure_needed = True
-                break
-
+        reconfigure_needed = any(
+            not os.path.exists(path) or os.path.getmtime(path) > stamp
+            for path, stamp in files
+        )
         if not reconfigure_needed:
             return True
 
@@ -134,10 +130,7 @@ class Context(object):
         return True
 
     def Build(self):
-        if not self.reconfigure():
-            return False
-
-        return self.build_internal()
+        return False if not self.reconfigure() else self.build_internal()
 
     def build_internal(self):
         if self.options.show_graph:
@@ -177,8 +170,11 @@ class Context(object):
             if message is None:
                 util.con_err(util.ConsoleHeader, 'Build failed.', util.ConsoleNormal)
             else:
-                util.con_err(util.ConsoleHeader, 'Build failed: {}'.format(message),
-                             util.ConsoleNormal)
+                util.con_err(
+                    util.ConsoleHeader,
+                    f'Build failed: {message}',
+                    util.ConsoleNormal,
+                )
             return False
         if status == TaskMaster.BUILD_INTERRUPTED:
             util.con_err(util.ConsoleHeader, 'Build cancelled.', util.ConsoleNormal)

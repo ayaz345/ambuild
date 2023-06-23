@@ -57,7 +57,7 @@ class DirectCommand(Command):
 		self.failureIsFatal = failureIsFatal
 		self.env = env
 	def run(self, runner, job):
-		runner.PrintOut(' '.join(['"' + i + '"' for i in self.argv]))
+		runner.PrintOut(' '.join([f'"{i}"' for i in self.argv]))
 		args = { 'args':	 self.argv,
 			       'stdout': subprocess.PIPE,
 			       'stderr': subprocess.PIPE,
@@ -74,11 +74,11 @@ class DirectCommand(Command):
 			raise Exception('failure: program terminated with non-zero exitcode {0}'.format(p.returncode))
 
 def RunDirectCommand(runner, argv, exe = None):
-	runner.PrintOut(' '.join([i for i in argv]))
+	runner.PrintOut(' '.join(list(argv)))
 	args = {'args':   argv,
-          'stdout': subprocess.PIPE,
-          'stderr': subprocess.PIPE,
-          'shell':  False}
+	'stdout': subprocess.PIPE,
+	'stderr': subprocess.PIPE,
+	'shell':  False}
 	if exe != None:
 		argv['executable'] = exe
 	p = subprocess.Popen(**args)

@@ -49,48 +49,37 @@ class MSVC(Vendor):
 
     @property
     def debugInfoArgv(self):
-        if int(self.version_string) >= 1800:
-            return ['/Zi', '/FS']
-        return ['/Zi']
+        return ['/Zi', '/FS'] if int(self.version_string) >= 1800 else ['/Zi']
 
     def parseDebugInfoType(self, debuginfo):
-        if debuginfo == 'bundled':
-            return 'separate'
-        return debuginfo
+        return 'separate' if debuginfo == 'bundled' else debuginfo
 
     def objectArgs(self, sourceFile, objFile):
-        return ['/showIncludes', '/nologo', '/c', sourceFile, '/Fo' + objFile]
+        return ['/showIncludes', '/nologo', '/c', sourceFile, f'/Fo{objFile}']
 
     def staticLinkArgv(self, files, outputFile):
-        return ['lib', '/OUT:' + outputFile] + files
+        return ['lib', f'/OUT:{outputFile}'] + files
 
     def programLinkArgv(self, cmd_argv, files, linkFlags, symbolFile, outputFile):
         argv = cmd_argv + files
         argv += ['/link']
         argv += linkFlags
-        argv += [
-            '/OUT:' + outputFile,
-            '/nologo',
-        ]
+        argv += [f'/OUT:{outputFile}', '/nologo']
         if symbolFile:
-            argv += ['/DEBUG', '/PDB:"' + symbolFile + '.pdb"']
+            argv += ['/DEBUG', f'/PDB:"{symbolFile}.pdb"']
         return argv
 
     def libLinkArgv(self, cmd_argv, files, linkFlags, symbolFile, outputFile):
         argv = cmd_argv + files
         argv += ['/link']
         argv += linkFlags
-        argv += [
-            '/OUT:' + outputFile,
-            '/nologo',
-            '/DLL',
-        ]
+        argv += [f'/OUT:{outputFile}', '/nologo', '/DLL']
         if symbolFile:
-            argv += ['/DEBUG', '/PDB:"' + symbolFile + '.pdb"']
+            argv += ['/DEBUG', f'/PDB:"{symbolFile}.pdb"']
         return argv
 
     def preprocessArgv(self, sourceFile, outFile):
-        return ['/showIncludes', '/nologo', '/P', '/c', sourceFile, '/Fi' + outFile]
+        return ['/showIncludes', '/nologo', '/P', '/c', sourceFile, f'/Fi{outFile}']
 
     @staticmethod
     def IncludePath(outputPath, includePath):
@@ -118,7 +107,7 @@ class MSVC(Vendor):
 
         # Truncate down to the major version then correct the offset
         # There is some evidence that the first digit of the minor version can be used for the PDB, but I can't reproduce it
-        cl_version = int(cl_version / 100) - 6
+        cl_version = cl_version // 100 - 6
 
         # Microsoft introduced a discontinuity with vs2015
         if cl_version >= 13:

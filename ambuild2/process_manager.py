@@ -45,7 +45,7 @@ class MessageReceiver(object):
                 return True
 
             if obj['id'] not in self.messageMap:
-                raise Exception('Unhandled message: {}'.format(obj['id']))
+                raise Exception(f"Unhandled message: {obj['id']}")
             self.messageMap[obj['id']](self, obj)
 
     def halt_pump(self):
@@ -201,7 +201,7 @@ elif platform.system() == 'Windows':
                 proc, obj = self.queue_.popleft()
 
                 if obj is None:
-                    raise EOFError('Process {} pipe closed'.format(proc.pid))
+                    raise EOFError(f'Process {proc.pid} pipe closed')
 
             return proc, obj
 
@@ -237,7 +237,7 @@ else:
         def __enter__(self):
             for proc in self.procs_:
                 self.map_[proc.channel.poll_handle] = proc
-                self.rdlist_ = [key for key in self.map_]
+                self.rdlist_ = list(self.map_)
             return self
 
         def poll(self):

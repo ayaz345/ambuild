@@ -37,11 +37,7 @@ class BaseContext(object):
         self.parent_ = parent
         self.script_ = script
 
-        if parent:
-            self.vars_ = copy.copy(parent.vars_)
-        else:
-            self.vars_ = {}
-
+        self.vars_ = copy.copy(parent.vars_) if parent else {}
         # Merge.
         for key in vars:
             self.vars_[key] = vars[key]
@@ -194,7 +190,7 @@ class BuildContext(BaseContext):
         if self.localFolder_ is not None:
             raise Exception("Cannot set top-level build folder twice!")
 
-        if folder == '/' or folder == '.' or folder == './':
+        if folder in ['/', '.', './']:
             self.buildFolder = ''
         else:
             self.buildFolder = os.path.normpath(folder)

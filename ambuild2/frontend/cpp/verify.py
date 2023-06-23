@@ -92,7 +92,7 @@ class Verifier(object):
 
         p = util.CreateProcess(argv, env = self.env_, no_raise = False)
         if util.WaitForProcess(p) != 0:
-            raise Exception('compiler failed with return code {}: {}'.format(p.returncode, argv))
+            raise Exception(f'compiler failed with return code {p.returncode}: {argv}')
 
         inclusion_pattern = None
         if self.family_ == 'msvc':
@@ -152,12 +152,12 @@ class Verifier(object):
         executable_argv = [self.executable_]
         if self.family_ == 'emscripten':
             exe = 'node'
-            executable_argv[0:0] = [exe]
+            executable_argv[:0] = [exe]
         else:
             exe = util.MakePath('.', self.executable_)
 
         p = util.CreateProcess(executable_argv, executable = exe, env = self.env_)
-        if p == None:
+        if p is None:
             raise Exception('failed to create executable with {0}'.format(self.argv_[0]))
         if util.WaitForProcess(p) != 0:
             raise Exception('executable failed with return code {0}'.format(p.returncode))

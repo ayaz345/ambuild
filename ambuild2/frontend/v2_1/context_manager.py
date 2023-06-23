@@ -90,7 +90,7 @@ class ContextManager(context_manager.ContextManager):
         # Only return variables that changed.
         obj = util.Expando()
         for key in scriptGlobals:
-            if (not key in cx.vars_) or (scriptGlobals[key] is not cx.vars_[key]):
+            if key not in cx.vars_ or scriptGlobals[key] is not cx.vars_[key]:
                 setattr(obj, key, scriptGlobals[key])
         return obj
 
@@ -109,13 +109,13 @@ class ContextManager(context_manager.ContextManager):
         # Make the new context. We allow top-level contexts in the root build
         # and otherwise for absolute paths.
         if isinstance(parent, RootBuildContext) or \
-           (isinstance(parent, TopLevelBuildContext) and path.startswith('/')):
+               (isinstance(parent, TopLevelBuildContext) and path.startswith('/')):
             constructor = TopLevelBuildContext
-        else:
-            if not paths.IsSubPath(sourceFolder, parent.sourceFolder):
-                raise Exception("Nested build contexts must be within the same folder structure")
+        elif paths.IsSubPath(sourceFolder, parent.sourceFolder):
             constructor = BuildContext
 
+        else:
+            raise Exception("Nested build contexts must be within the same folder structure")
         cx = constructor(cm = self,
                          parent = parent,
                          vars = vars,

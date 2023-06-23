@@ -20,13 +20,12 @@ class Cache:
 			f.close()
 
 	def LoadCache(self):
-		f = open(self.path, 'rb')
-		try:
-			self.vars = pickle.load(f)
-		except Exception as e:
-			f.close()
-			raise e
-		f.close()
+		with open(self.path, 'rb') as f:
+			try:
+				self.vars = pickle.load(f)
+			except Exception as e:
+				f.close()
+				raise e
 
 	def HasVariable(self, key):
 		return key in self.vars

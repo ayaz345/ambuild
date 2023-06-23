@@ -71,8 +71,7 @@ class CompilerLocator(object):
             return self.detect_from_env()
 
         if util.Platform() == 'windows':
-            compiler = self.detect_msvc()
-            if compiler:
+            if compiler := self.detect_msvc():
                 return compiler
 
         return self.find_default_compiler()
@@ -141,15 +140,18 @@ class CompilerLocator(object):
             env_cmds = msvc_utils.DeduceEnv(bat_file, [])
             env = util.BuildEnv(env_cmds)
         except:
-            util.con_err(util.ConsoleRed, "Could not run or analyze {}".format(bat_file),
-                         util.ConsoleNormal)
+            util.con_err(
+                util.ConsoleRed,
+                f"Could not run or analyze {bat_file}",
+                util.ConsoleNormal,
+            )
             return None
 
         necessary_tools = ['cl.exe', 'rc.exe', 'lib.exe']
         tools, _ = FindToolsInEnv(env, necessary_tools)
         for tool in necessary_tools:
             if tool not in tools:
-                util.con_err(util.ConsoleRed, "Could not find {} for {}".format(tool, bat_file))
+                util.con_err(util.ConsoleRed, f"Could not find {tool} for {bat_file}")
                 return None
 
         cc, _ = self.run_compiler(env, 'CC', 'cl', 'msvc', abs_path = tools['cl.exe'])
@@ -232,12 +234,9 @@ def VerifyCompiler(env, mode, cmd, assumed_family, abs_path):
     argv = base_argv[:]
     if abs_path is not None:
         argv[0] = abs_path
-    if mode == 'CXX':
-        filename = 'test.cpp'
-    else:
-        filename = 'test.c'
-    file = open(filename, 'w')
-    file.write("""
+    filename = 'test.cpp' if mode == 'CXX' else 'test.c'
+    with open(filename, 'w') as file:
+        file.write("""
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -278,8 +277,6 @@ int main()
   exit(0);
 }
 """)
-    file.close()
-
     executable = 'test'
     if mode == 'CXX':
         executable += 'p'
@@ -303,7 +300,7 @@ int main()
                  'Checking {0} compiler (vendor test {1})... '.format(mode, assumed_family),
                  util.ConsoleBlue, '{0}'.format(argv), util.ConsoleNormal)
     p = util.CreateProcess(argv, env = env)
-    if p == None:
+    if p is None:
         raise CompilerNotFoundException('compiler not found')
     if util.WaitForProcess(p) != 0:
         raise Exception('compiler failed with return code {0}'.format(p.returncode))
@@ -315,12 +312,12 @@ int main()
     executable_argv = [executable]
     if assumed_family == 'emscripten':
         exe = 'node'
-        executable_argv[0:0] = [exe]
+        executable_argv[:0] = [exe]
     else:
         exe = util.MakePath('.', executable)
 
     p = util.CreateProcess(executable_argv, executable = exe, env = env)
-    if p == None:
+    if p is None:
         raise Exception('failed to create executable with {0}'.format(cmd))
     if util.WaitForProcess(p) != 0:
         raise Exception('executable failed with return code {0}'.format(p.returncode))

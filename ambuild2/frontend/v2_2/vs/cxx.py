@@ -83,7 +83,7 @@ class Project(object):
         for builder in self.builders_:
             tag_folder = generator.addFolder(cx, builder.localFolder)
             objFile = paths.Join(tag_folder, builder.outputFile)
-            pdbFile = paths.Join(tag_folder, builder.name_ + '.pdb')
+            pdbFile = paths.Join(tag_folder, f'{builder.name_}.pdb')
             objNode = generator.addOutput(cx, objFile, node)
             pdbNode = generator.addOutput(cx, pdbFile, node)
             outputs.append(CppNodes(objNode, pdbNode, builder.type, builder.compiler.target))
@@ -98,7 +98,7 @@ class VisualStudio(MSVC):
         super(VisualStudio, self).__init__(version)
 
     def like(self, name):
-        return name == 'vs' or name == 'msvc'
+        return name in ['vs', 'msvc']
 
 class VsLinker(Linker):
     def __init__(self):

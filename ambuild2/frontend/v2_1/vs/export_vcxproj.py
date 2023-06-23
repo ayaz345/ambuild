@@ -136,7 +136,7 @@ def sanitize_val_defines(defines):
             new_defines.append(option)
             continue
 
-        key = option[0:index]
+        key = option[:index]
         val = option[index + 1:]
         if val[0] == '"' and val[-1] == '"':
             val = '\\"{0}\\"'.format(val)
@@ -241,7 +241,7 @@ def export_configuration_options(node, xml, builder):
                   ] + compiler.defines + compiler.cxxdefines + compiler.rcdefines
         defines = sanitize_val_defines(defines)
         xml.tag('PreprocessorDefinitions', ';'.join(defines))
-        xml.tag('AdditionalIncludeDirectories', ';'.join(includes[1:] + includes[0:1]))
+        xml.tag('AdditionalIncludeDirectories', ';'.join(includes[1:] + includes[:1]))
 
     with xml.block('Link'):
         link_flags = compiler.linkflags + compiler.postlink
@@ -263,12 +263,12 @@ def export_configuration_options(node, xml, builder):
 
                 m = re.match('/NODEFAULTLIB:(.+)', flag)
                 if m is not None:
-                    ignore_libs.append(m.group(1))
+                    ignore_libs.append(m[1])
                     continue
 
                 m = re.match('/MACHINE:(.+)', flag)
                 if m is not None:
-                    machine = m.group(1)
+                    machine = m[1]
             else:
                 libs.append(Dep.resolve(node.context, builder, flag))
 
@@ -286,9 +286,7 @@ def export_configuration_options(node, xml, builder):
             xml.tag('OptimizeReferences', 'true')
         elif '/OPT:NOREF' in link_flags:
             xml.tag('OptimizeReferences', 'false')
-        if '/OPT:ICF' in link_flags:
-            xml.tag('EnableCOMDATFolding', 'true')
-        elif '/OPT:NOICF' in link_flags:
+        if '/OPT:ICF' in link_flags or '/OPT:NOICF' in link_flags:
             xml.tag('EnableCOMDATFolding', 'true')
         xml.tag('TargetMachine', 'Machine{0}'.format(machine))
 

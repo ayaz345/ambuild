@@ -18,15 +18,14 @@ def Preprocess(lines):
     ignoring = False
     for line in lines:
         if line.endswith('\n'):
-            line = line[:len(line) - 1]
-        has_continuation = LineHasContinuation(line)
-        if has_continuation:
+            line = line[:-1]
+        if has_continuation := LineHasContinuation(line):
             if ignoring:
                 continue
             if line.startswith('#'):
                 ignoring = True
                 continue
-            chars += line[:len(line) - 1]
+            chars += line[:-1]
         else:
             ignoring = False
             if line.startswith('#'):
@@ -93,9 +92,7 @@ class Parser(object):
         return False
 
     def peek(self):
-        if self.pos_ >= len(self.chars_):
-            return None
-        return self.chars_[self.pos_]
+        return None if self.pos_ >= len(self.chars_) else self.chars_[self.pos_]
 
 def ParseDependencyFile(filename, fp):
     p = Parser(fp)

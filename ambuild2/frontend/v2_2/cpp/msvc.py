@@ -53,43 +53,34 @@ class MSVC(Vendor):
         return ['/Z7']
 
     def makePchArgv(self, source_file, pch_file, source_type):
-        return ['/showIncludes', '/nologo', '/Yc', '/c', source_file, '/Fp' + pch_file]
+        return ['/showIncludes', '/nologo', '/Yc', '/c', source_file, f'/Fp{pch_file}']
 
     def parseDebugInfoType(self, debuginfo):
-        if debuginfo == 'bundled':
-            return 'separate'
-        return debuginfo
+        return 'separate' if debuginfo == 'bundled' else debuginfo
 
     def objectArgs(self, sourceFile, objFile):
-        return ['/showIncludes', '/nologo', '/c', sourceFile, '/Fo' + objFile]
+        return ['/showIncludes', '/nologo', '/c', sourceFile, f'/Fo{objFile}']
 
     def programLinkArgv(self, cmd_argv, files, linkFlags, symbolFile, outputFile):
         argv = cmd_argv + files
         argv += ['/link']
         argv += linkFlags
-        argv += [
-            '/OUT:' + outputFile,
-            '/nologo',
-        ]
+        argv += [f'/OUT:{outputFile}', '/nologo']
         if symbolFile:
-            argv += ['/DEBUG', '/PDB:"' + symbolFile + '.pdb"']
+            argv += ['/DEBUG', f'/PDB:"{symbolFile}.pdb"']
         return argv
 
     def libLinkArgv(self, cmd_argv, files, linkFlags, symbolFile, outputFile):
         argv = cmd_argv + files
         argv += ['/link']
         argv += linkFlags
-        argv += [
-            '/OUT:' + outputFile,
-            '/nologo',
-            '/DLL',
-        ]
+        argv += [f'/OUT:{outputFile}', '/nologo', '/DLL']
         if symbolFile:
-            argv += ['/DEBUG', '/PDB:"' + symbolFile + '.pdb"']
+            argv += ['/DEBUG', f'/PDB:"{symbolFile}.pdb"']
         return argv
 
     def preprocessArgv(self, sourceFile, outFile):
-        return ['/showIncludes', '/nologo', '/P', '/c', sourceFile, '/Fi' + outFile]
+        return ['/showIncludes', '/nologo', '/P', '/c', sourceFile, f'/Fi{outFile}']
 
     @staticmethod
     def IncludePath(output_path, include_path):
@@ -122,13 +113,12 @@ class MSVC(Vendor):
         # Include path calculation expects a path relative to output_path, so
         # we need to transform it.
         pch_rel_folder = os.path.relpath(os.path.join(build_root, pch.pch_file.path), output_path)
-        argv = [
-            '/Fp' + MSVC.IncludePath(output_path, pch_rel_folder),
-            '/Yu' + header_name,
+        return [
+            f'/Fp{MSVC.IncludePath(output_path, pch_rel_folder)}',
+            f'/Yu{header_name}',
             '/I',
             MSVC.IncludePath(output_path, folder),
         ]
-        return argv
 
     ##
     # MSVC-specific properties.
@@ -139,7 +129,7 @@ class MSVC(Vendor):
 
         # Truncate down to the major version then correct the offset
         # There is some evidence that the first digit of the minor version can be used for the PDB, but I can't reproduce it
-        cl_version = int(cl_version / 100) - 6
+        cl_version = cl_version // 100 - 6
 
         # Microsoft introduced a discontinuity with vs2015
         if cl_version >= 13:
@@ -165,10 +155,10 @@ class MSVC(Vendor):
 
     @property
     def shared_pdb_flags(self):
-        return set(['/Zi', '/ZI'])
+        return {'/Zi', '/ZI'}
 
     def nameForPch(self, source_file):
-        return os.path.splitext(source_file)[0] + '.pch'
+        return f'{os.path.splitext(source_file)[0]}.pch'
 
     @property
     def emits_dependency_file(self):
@@ -189,4 +179,4 @@ class MsvcArchiver(Archiver):
         return name == 'msvc'
 
     def makeArgv(self, base_argv, files, outputFile):
-        return base_argv + ['/OUT:' + outputFile] + files
+        return base_argv + [f'/OUT:{outputFile}'] + files

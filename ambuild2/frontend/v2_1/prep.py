@@ -79,7 +79,7 @@ class Preparer(object):
 
     @staticmethod
     def default_build_folder(prep):
-        return 'obj-' + util.Platform() + '-' + platform.machine()
+        return f'obj-{util.Platform()}-{platform.machine()}'
 
     def Configure(self):
         if self.target_arch is None:
@@ -168,4 +168,4 @@ class Preparer(object):
                     sys.exit(1)
             except Exception as e:
                 traceback.print_exc()
-                util.con_err(util.ConsoleRed, 'Configure failed: {}'.format(e), util.ConsoleNormal)
+                util.con_err(util.ConsoleRed, f'Configure failed: {e}', util.ConsoleNormal)
